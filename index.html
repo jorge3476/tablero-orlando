@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Orlando">
+<meta name="theme-color" content="#0b0d10">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Tablero Orlando</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: horizontal = 3 columnas (carro | navegación | música) + franja de gasolina.
+   Vertical = carro y música arriba, navegación al centro, gasolina abajo. */
+:root{
+  --bg:#0b0d10; --panel:#14181d; --line:#232a32; --text:#eef1f4; --muted:#8a94a0;
+  --accent:#3ea6ff; --good:#38d39f; --warn:#ffb020; --crit:#ff5c5c;
+  --display:'Barlow Condensed','Arial Narrow',sans-serif; --body:'Barlow',system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--body);overflow:hidden;
+  padding:max(12px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+  -webkit-user-select:none;user-select:none;touch-action:manipulation}
+.app{height:100%;display:grid;gap:12px;min-height:0;
+  grid-template-columns:1.05fr 1.3fr 1fr;grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-areas:"h h h" "sp nv mu" "pp fu fu"}
+@media (orientation:portrait){
+  .app{grid-template-columns:1fr 1fr;grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto;
+    grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto auto;grid-template-areas:"h h" "sp mu" "nv nv" "pp pp" "fu fu"}
+}
+header{grid-area:h;display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--muted);font-size:15px}
+header b{color:var(--text);font-family:var(--display);font-size:22px;letter-spacing:.06em;font-weight:600}
+.hr{display:flex;gap:8px;align-items:center;white-space:nowrap}
+header b{white-space:nowrap}
+@media (orientation:portrait){header b{font-size:17px;letter-spacing:.03em}.chip{padding:6px 10px;font-size:13px}}
+.chip{border:1px solid var(--line);border-radius:999px;padding:6px 14px;background:var(--panel);color:var(--text);font:inherit;font-size:14px;min-height:40px}
+.chip[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:6px}
+.dot.ok{background:var(--good)}.dot.bad{background:var(--crit)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;min-height:0;display:flex;flex-direction:column}
+.label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.speedcard{grid-area:sp;align-items:center;justify-content:space-between;background:radial-gradient(120% 80% at 50% 100%,#162433 0%,var(--panel) 60%)}
+.speed{font-family:var(--display);font-weight:600;font-size:clamp(84px,16vh,150px);line-height:.9;font-variant-numeric:tabular-nums;text-align:center}
+.unit{font-family:var(--display);font-size:22px;color:var(--muted);letter-spacing:.12em;text-align:center}
+.carbox{width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:4px 0}
+.carbox img{max-width:100%;max-height:100%;object-fit:contain;transition:opacity .18s;filter:drop-shadow(0 16px 12px rgba(0,0,0,.6)) drop-shadow(0 0 24px rgba(62,166,255,.14))}
+.carbox img.fade{opacity:0}
+.dots{display:flex;gap:7px;margin-bottom:8px}.dots i{width:7px;height:7px;border-radius:50%;background:#2c3641}.dots i.on{background:var(--accent)}
+.trip{display:flex;gap:26px;font-variant-numeric:tabular-nums}
+.trip div{text-align:center}.trip strong{display:block;font-family:var(--display);font-size:26px;font-weight:600}
+/* navegación */
+.nav{grid-area:nv;gap:10px}
+.map{flex:1;min-height:60px;border-radius:12px;position:relative;overflow:hidden;background:#0e1319;border:1px solid var(--line)}
+.map canvas{width:100%;height:100%;display:block}
+.map .note{position:absolute;left:12px;bottom:8px;right:12px;font-size:12px;color:var(--muted)}
+.dest{display:flex;gap:8px}
+.dest input{flex:1;min-height:48px;border-radius:12px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 14px;font-size:17px;-webkit-user-select:text;user-select:text;min-width:0}
+.favs{display:flex;gap:8px;flex-wrap:wrap}
+.fav{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#1a2027}
+.fav button{background:none;border:0;color:var(--text);font:500 15px var(--body);padding:0 14px;min-height:40px}
+.fav button.x{color:var(--muted);padding:0 12px 0 4px}
+.navbtns{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.navbtns button{min-height:54px;border-radius:14px;border:1px solid var(--line);background:#1a2027;color:var(--text);font:600 16px var(--body)}
+.navbtns button:active{background:var(--accent);color:#04121f}
+/* música */
+.music{grid-area:mu;gap:8px}
+.art{aspect-ratio:1;max-height:34%;align-self:center;border-radius:14px;background:linear-gradient(135deg,#1d3b57,#0f1b28 55%,#2b2146);display:grid;place-items:center;border:1px solid var(--line);overflow:hidden;position:relative}
+.art svg{width:46%;opacity:.8}.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.title{font-family:var(--display);font-size:26px;font-weight:600;line-height:1.1;text-wrap:balance;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.artist{color:var(--muted);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:5px;background:#232a32;border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--accent)}
+.ctrl{display:flex;justify-content:space-between;align-items:center;margin-top:auto}
+.ctrl button{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);background:#1a2027;color:var(--text);display:grid;place-items:center}
+.ctrl button.play{background:var(--accent);color:#04121f;border-color:var(--accent)}
+.ctrl button:active{transform:scale(.94)}
+.ctrl svg{width:30px;height:30px;fill:currentColor}
+.status{font-size:12px;color:var(--muted);min-height:16px}
+/* combustible */
+.fuel{grid-area:fu;flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px 18px;padding:12px 18px}
+.gauge{flex:1.4;min-width:180px}
+.gauge .track{height:14px;border-radius:7px;background:#232a32;margin-top:8px;overflow:hidden}
+.gauge .track i{display:block;height:100%;border-radius:7px;background:var(--good);transition:width .6s,background .3s}
+.gauge .ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
+.stat{min-width:88px}.stat strong{display:block;font-family:var(--display);font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{font-size:13px;color:var(--muted)}
+.btn{min-height:52px;padding:0 20px;border-radius:14px;border:1px solid var(--accent);background:transparent;color:var(--accent);font:600 16px var(--body)}
+.btn.solid{background:var(--accent);color:#04121f}
+dialog{margin:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:18px;padding:22px;width:min(460px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{font-family:var(--display);font-size:26px;margin-bottom:8px}
+dialog p{color:var(--muted);font-size:14px;line-height:1.4}
+dialog label{display:block;margin:12px 0 4px;color:var(--muted);font-size:14px}
+dialog input{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 12px;font-size:16px;-webkit-user-select:text;user-select:text}
+dialog code{display:block;word-break:break-all;background:#0e1319;border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;margin-top:4px;-webkit-user-select:text;user-select:text}
+dialog .row{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-wrap:wrap}
+/* pico y placa */
+.pyp{grid-area:pp;padding:12px 16px;gap:4px;border-left:4px solid var(--good)}
+.pyp.warn{border-left-color:var(--warn)}.pyp.crit{border-left-color:var(--crit)}
+.pyp .label{white-space:nowrap}
+.pyp .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.citybtn{white-space:nowrap;flex-shrink:0;background:none;border:1px solid var(--line);border-radius:999px;color:var(--text);font:600 14px var(--body);padding:4px 12px;min-height:34px}
+.citybtn::after{content:" ▾";color:var(--muted)}
+.pstate{font-family:var(--display);font-size:24px;font-weight:600;line-height:1.1}
+.pyp.warn .pstate{color:var(--warn)}.pyp.crit .pstate{color:var(--crit)}.pyp .pstate{color:var(--good)}
+.psub{font-size:13px;color:var(--muted)}
+.psub.stale{color:var(--warn)}
+/* avisos */
+.chip.alert{border-color:var(--warn);color:var(--warn)}.chip.alert.crit{border-color:var(--crit);color:var(--crit)}
+dialog{max-height:88vh;overflow:auto}
+dialog h3{font-family:var(--display);font-size:19px;letter-spacing:.04em;margin:20px 0 2px;color:var(--text)}
+dialog select{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 10px;font-size:16px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.mrow{display:grid;grid-template-columns:1fr 96px auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.mrow input{min-height:42px}.mrow small{display:block;color:var(--muted);font-size:12px}
+.btn.sm{min-height:42px;padding:0 14px;font-size:14px}
+.btn.ghost{border-color:var(--line);color:var(--muted)}
+.aitem{border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:12px;padding:12px 14px;margin-top:12px}
+.aitem.crit{border-left-color:var(--crit)}
+.aitem b{font-size:17px}.aitem p{margin-top:4px}
+.aitem .row{margin-top:10px;justify-content:flex-start}
+.aitem .more{display:none;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}.aitem .more.on{display:flex}
+.aitem .more input,.aitem .more select{width:auto;flex:1;min-width:140px}
+.clist button{display:flex;justify-content:space-between;width:100%;text-align:left;background:#1a2027;border:1px solid var(--line);border-radius:12px;color:var(--text);font:600 17px var(--body);padding:14px 16px;margin-top:8px}
+.clist button span{color:var(--muted);font-weight:400;font-size:14px}
+.clist button[aria-current="true"]{border-color:var(--accent)}
+/* modo manejo: menos distracción, botones más grandes */
+body.driving .dest,body.driving .favs,body.driving #refuelBtn,body.driving #setBtn{display:none}
+body.driving .ctrl button{width:92px;height:92px}
+body.driving .navbtns button{min-height:66px;font-size:18px}
+/* modo noche: menos brillo */
+body.night{--bg:#050607;--panel:#0b0e11;--line:#1a1f25;--text:#b9c1c9;--muted:#6b7480;--accent:#2b7fc4;--good:#2aa27a;--warn:#c98c1a;--crit:#c94848}
+body.night .carbox img{filter:brightness(.7) drop-shadow(0 16px 12px rgba(0,0,0,.6))}
+body.night .speed{color:#cfd5db}
+body.night .ctrl button.play{color:#020a12}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <b>CHEVROLET ORLANDO · 2013</b>
+    <span class="hr"><span id="net"><i class="dot ok" id="netDot"></i><span id="netTxt">En línea</span></span><span id="clock">--:--</span></span>
+    <span class="hr"><button class="chip alert" id="alertBtn" hidden>Avisos</button><button class="chip" id="modeBtn" aria-pressed="true">Modo demo</button><button class="chip" id="setBtn" aria-label="Ajustes">Ajustes</button></span>
+  </header>
+
+  <section class="card speedcard" aria-label="Velocidad">
+    <span class="label">Velocidad</span>
+    <div><div class="speed" id="speed">0</div><div class="unit">KM/H</div></div>
+    <div class="carbox" id="carbox">
+      <img id="carImg" alt="Chevrolet Orlando" src="cars/orlando-principal.webp" draggable="false">
+    </div>
+    <div class="trip"><div><strong id="tripKm">0.0</strong><span class="label">Viaje km</span></div><div><strong id="gpsState">Demo</strong><span class="label">Fuente</span></div></div>
+  </section>
+
+  <section class="card nav" aria-label="Navegación">
+    <span class="label">Navegación</span>
+    <div class="map"><canvas id="map"></canvas><div class="note">Escribe el destino y elige la app. Se abre con la ruta lista; para verla junto al tablero usa Split View.</div></div>
+    <div class="favs" id="favs"></div>
+    <div class="dest"><input id="destIn" type="text" placeholder="¿A dónde vamos?" autocomplete="off" aria-label="Destino"><button class="btn" id="favAdd">Guardar</button></div>
+    <div class="navbtns">
+      <button data-app="apple">Apple Maps</button>
+      <button data-app="google">Google Maps</button>
+      <button data-app="waze">Waze</button>
+    </div>
+  </section>
+
+  <section class="card music" aria-label="Música">
+    <span class="label">Spotify</span>
+    <div class="art" id="art"><svg viewBox="0 0 24 24" fill="#8fc7ff"><path d="M9 3v11.6A3.5 3.5 0 1 0 11 18V8h7V3z"/></svg></div>
+    <div><div class="title" id="trackTitle">Sin conectar</div><div class="artist" id="trackArtist">Abre Ajustes para enlazar Spotify</div></div>
+    <div class="bar"><i id="prog"></i></div>
+    <div class="status" id="spStatus"></div>
+    <div class="ctrl">
+      <button id="prev" aria-label="Canción anterior"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
+      <button id="play" class="play" aria-label="Reproducir o pausar"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+      <button id="next" aria-label="Canción siguiente"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18V6l8.5 6z"/></svg></button>
+    </div>
+  </section>
+
+  <section class="card pyp" id="pyp" aria-label="Pico y placa">
+    <div class="top"><span class="label">Pico y placa · <span id="pDig">6</span></span><button class="citybtn" id="cityBtn">Villavicencio</button></div>
+    <div class="pstate" id="pState">Hoy puedes circular</div>
+    <div class="psub" id="pSub"></div>
+    <div class="psub" id="pNext"></div>
+  </section>
+
+  <section class="card fuel" aria-label="Combustible">
+    <div class="gauge">
+      <div class="label">Gasolina · <span id="gal">0.0</span> de <span id="cap">16.9</span> gal</div>
+      <div class="track"><i id="fuelBar"></i></div>
+      <div class="ticks"><span>E</span><span>1/4</span><span>1/2</span><span>3/4</span><span>F</span></div>
+    </div>
+    <div class="stat"><strong id="range">0</strong><span>km de autonomía</span></div>
+    <div class="stat"><strong id="kmgal">0.0</strong><span>km por galón</span></div>
+    <div class="stat"><strong id="galkm">0.000</strong><span>galones por km</span></div>
+    <button class="btn" id="refuelBtn">Registrar tanqueo</button>
+  </section>
+</div>
+
+<dialog id="dlg">
+  <h2>Registrar tanqueo</h2>
+  <label for="fKm">Kilómetros desde el tanqueo anterior</label>
+  <input id="fKm" type="number" inputmode="decimal" placeholder="420">
+  <label for="fGal">Galones que echaste</label>
+  <input id="fGal" type="number" inputmode="decimal" placeholder="12.1">
+  <div class="row"><button class="btn" id="fCancel" style="border-color:var(--line);color:var(--muted)">Cancelar</button><button class="btn solid" id="fSave">Guardar</button></div>
+</dialog>
+
+<dialog id="sdlg">
+  <h2>Ajustes</h2>
+  <h3>Carro</h3>
+  <div class="two">
+    <div><label for="plate">Último dígito de la placa</label><input id="plate" type="number" inputmode="numeric" min="0" max="9"></div>
+    <div><label for="tank">Tanque (galones)</label><input id="tank" type="number" inputmode="decimal"></div>
+  </div>
+  <label for="mainCity">Ciudad principal para pico y placa</label>
+  <select id="mainCity"></select>
+  <label for="nightMode">Modo noche</label>
+  <select id="nightMode"><option value="auto">Automático (6:00 p. m. a 6:00 a. m.)</option><option value="on">Siempre</option><option value="off">Nunca</option></select>
+
+  <h3>Documentos</h3>
+  <p>Te aviso desde dos días antes de que venzan.</p>
+  <div class="two">
+    <div><label for="soatD">SOAT vence</label><input id="soatD" type="date"></div>
+    <div><label for="rtmD">Técnico-mecánica vence</label><input id="rtmD" type="date"></div>
+  </div>
+
+  <h3>Mantenimiento</h3>
+  <p>Pon el kilometraje del odómetro. El tablero suma los km del GPS y te avisa 300 km antes de cada servicio. Corrígelo cuando quieras.</p>
+  <label for="odoIn">Kilometraje actual</label>
+  <input id="odoIn" type="number" inputmode="numeric" placeholder="125000">
+  <div id="mantList"></div>
+
+  <h3>Spotify</h3>
+  <p>Crea una app gratis en developer.spotify.com/dashboard (requiere cuenta Premium), copia su Client ID y registra esta dirección como Redirect URI:</p>
+  <code id="redir"></code>
+  <label for="cid">Client ID de Spotify</label>
+  <input id="cid" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="row"><button class="btn ghost" id="spOut">Desconectar</button><button class="btn" id="spIn">Conectar Spotify</button></div>
+
+  <div class="row"><button class="btn ghost" id="sClose">Cerrar</button><button class="btn solid" id="sSave">Guardar</button></div>
+</dialog>
+
+<dialog id="adlg">
+  <h2>Avisos del carro</h2>
+  <div id="aList"></div>
+  <div class="row"><button class="btn ghost" id="aClose">Cerrar todo por ahora</button></div>
+</dialog>
+
+<dialog id="cdlg">
+  <h2>Pico y placa en otra ciudad</h2>
+  <p>Es solo para consultar. Al reabrir el tablero vuelve a tu ciudad principal.</p>
+  <div class="clist" id="cList"></div>
+  <p id="cNote" style="margin-top:12px"></p>
+  <div class="row"><button class="btn ghost" id="cClose">Cerrar</button></div>
+</dialog>
+
+<script>
+(function(){
+  var $ = function(id){return document.getElementById(id);};
+  function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+  function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+  function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
+
+  /* ---------- estado local (todo esto funciona sin internet) ---------- */
+  var TANK = parseFloat(lsGet('tank')) || 16.9;   // ~64 L; cámbialo en Ajustes
+  var S = {demo:true, speed:0, trip:0, fuel:parseFloat(lsGet('fuel'))||11.2, kmgal:parseFloat(lsGet('kmgal'))||35};
+  function saveCar(){lsSet('fuel',S.fuel);lsSet('kmgal',S.kmgal);}
+
+  function renderCar(){
+    $('speed').textContent = Math.round(S.speed);
+    $('tripKm').textContent = S.trip.toFixed(1);
+    var pct = Math.max(0,Math.min(1,S.fuel/TANK));
+    $('fuelBar').style.width = (pct*100)+'%';
+    $('fuelBar').style.background = pct<.15?'var(--crit)':pct<.3?'var(--warn)':'var(--good)';
+    $('gal').textContent = S.fuel.toFixed(1); $('cap').textContent = TANK.toFixed(1);
+    $('range').textContent = Math.round(S.fuel*S.kmgal);
+    $('kmgal').textContent = S.kmgal.toFixed(1);
+    $('galkm').textContent = (1/S.kmgal).toFixed(3);
+    $('modeBtn').setAttribute('aria-pressed', S.demo);
+    $('modeBtn').textContent = S.demo ? 'Modo demo' : 'GPS en vivo';
+    $('gpsState').textContent = S.demo ? 'Demo' : 'GPS';
+  }
+
+  var target = 40, tick = 0;
+  setInterval(function(){
+    $('clock').textContent = new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    if (S.demo){
+      if (Math.random()<.12) target = [0,25,45,60,80][Math.floor(Math.random()*5)];
+      S.speed += (target-S.speed)*.25;
+    }
+    var km = S.speed/3600; S.trip += km; S.fuel = Math.max(0,S.fuel - km/S.kmgal);
+    if (++tick % 15 === 0) saveCar();
+    renderCar(); renderProgress(); drawMap();
+  },1000);
+
+  /* GPS: usa satélites, no necesita datos del operador */
+  var watch=null;
+  $('modeBtn').onclick=function(){
+    if(S.demo){
+      if(!navigator.geolocation){return;}
+      try{ watch = navigator.geolocation.watchPosition(function(p){
+        S.demo=false; S.speed=Math.max(0,(p.coords.speed||0)*3.6); renderCar();
+      },function(){S.demo=true;$('gpsState').textContent='Sin permiso';},{enableHighAccuracy:true,maximumAge:1000}); }catch(e){}
+    } else { if(watch!==null){navigator.geolocation.clearWatch(watch);} S.demo=true; renderCar(); }
+  };
+
+  /* Tanqueo */
+  var dlg=$('dlg');
+  $('refuelBtn').onclick=function(){ try{dlg.showModal();}catch(e){dlg.setAttribute('open','');} };
+  $('fCancel').onclick=function(){dlg.close();};
+  $('fSave').onclick=function(){
+    var km=parseFloat($('fKm').value), gal=parseFloat($('fGal').value);
+    if(km>0 && gal>0){ S.kmgal=km/gal; S.fuel=TANK; S.trip=0; saveCar(); }
+    dlg.close(); renderCar();
+  };
+
+  /* ---------- navegación por enlaces profundos ---------- */
+  var favs=[]; try{favs=JSON.parse(lsGet('favs')||'[]');}catch(e){}
+  function drawFavs(){
+    var box=$('favs'); box.innerHTML='';
+    favs.forEach(function(f,i){
+      var d=document.createElement('div'); d.className='fav';
+      var b=document.createElement('button'); b.textContent=f; b.onclick=function(){$('destIn').value=f;};
+      var x=document.createElement('button'); x.className='x'; x.textContent='×'; x.setAttribute('aria-label','Quitar '+f);
+      x.onclick=function(){favs.splice(i,1);lsSet('favs',JSON.stringify(favs));drawFavs();};
+      d.appendChild(b); d.appendChild(x); box.appendChild(d);
+    });
+  }
+  $('favAdd').onclick=function(){
+    var v=$('destIn').value.trim(); if(!v||favs.indexOf(v)>-1||favs.length>=5){return;}
+    favs.push(v); lsSet('favs',JSON.stringify(favs)); drawFavs();
+  };
+  document.querySelectorAll('.navbtns button').forEach(function(b){
+    b.onclick=function(){
+      var q=encodeURIComponent($('destIn').value.trim()); if(!q){$('destIn').focus();return;}
+      var app=b.getAttribute('data-app'), url;
+      if(app==='google') url='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+q;
+      else if(app==='waze') url='https://waze.com/ul?navigate=yes&q='+q;
+      else url='https://maps.apple.com/?dirflg=d&daddr='+q;
+      window.open(url,'_blank');
+    };
+  });
+  drawFavs();
+
+  /* ---------- Spotify (Web API, PKCE sin servidor) ---------- */
+  var REDIR = location.origin + location.pathname;
+  var SP = {online:true, track:null, playing:false, prog:0, dur:0, at:0};
+
+  function rand(n){var a=new Uint8Array(n),c='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~',s='';crypto.getRandomValues(a);for(var i=0;i<n;i++)s+=c[a[i]%c.length];return s;}
+  function b64(buf){var s='',a=new Uint8Array(buf);for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+
+  async function spLogin(){
+    var cid=$('cid').value.trim(); if(!cid){$('cid').focus();return;}
+    lsSet('sp_cid',cid);
+    var v=rand(64); lsSet('sp_v',v);
+    var ch=b64(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)));
+    location.href='https://accounts.spotify.com/authorize?'+new URLSearchParams({
+      client_id:cid,response_type:'code',redirect_uri:REDIR,code_challenge_method:'S256',code_challenge:ch,
+      scope:'user-read-playback-state user-modify-playback-state'}).toString();
+  }
+  async function tokenCall(params){
+    var r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(params).toString()});
+    if(!r.ok) throw new Error('token '+r.status);
+    var j=await r.json();
+    lsSet('sp_at',j.access_token); lsSet('sp_exp',String(Date.now()+j.expires_in*1000-60000));
+    if(j.refresh_token) lsSet('sp_rt',j.refresh_token);
+  }
+  async function spToken(){
+    if(!lsGet('sp_rt')&&!lsGet('sp_at')) return null;
+    if(Date.now() < parseFloat(lsGet('sp_exp')||0)) return lsGet('sp_at');
+    await tokenCall({grant_type:'refresh_token',refresh_token:lsGet('sp_rt'),client_id:lsGet('sp_cid')});
+    return lsGet('sp_at');
+  }
+  async function api(method,path){
+    var t=await spToken(); if(!t) return null;
+    return fetch('https://api.spotify.com/v1'+path,{method:method,headers:{Authorization:'Bearer '+t}});
+  }
+  // Regreso desde Spotify con ?code=...
+  (async function(){
+    var p=new URLSearchParams(location.search), code=p.get('code');
+    if(!code) return;
+    try{
+      await tokenCall({grant_type:'authorization_code',code:code,redirect_uri:REDIR,client_id:lsGet('sp_cid'),code_verifier:lsGet('sp_v')});
+    }catch(e){ setStatus('No se pudo enlazar. Revisa el Client ID y el Redirect URI.'); }
+    history.replaceState(null,'',location.pathname);
+    poll();
+  })();
+
+  function setStatus(t){$('spStatus').textContent=t;}
+  function renderMusic(){
+    var linked = !!lsGet('sp_rt');
+    if(!linked){ $('trackTitle').textContent='Sin conectar'; $('trackArtist').textContent='Abre Ajustes para enlazar Spotify'; return; }
+    if(!SP.track){ $('trackTitle').textContent='Nada sonando'; $('trackArtist').textContent='Dale play en la app de Spotify'; }
+    else { $('trackTitle').textContent=SP.track.name; $('trackArtist').textContent=SP.track.artists.map(function(a){return a.name;}).join(', ');
+      var im=SP.track.album&&SP.track.album.images&&SP.track.album.images[0];
+      var art=$('art'), old=art.querySelector('img');
+      if(im){ if(!old){old=document.createElement('img');old.alt='';old.onerror=function(){old.remove();};art.appendChild(old);} if(old.src!==im.url) old.src=im.url; }
+      else if(old){old.remove();} }
+    $('playIcon').innerHTML = SP.playing ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    setStatus(SP.online ? '' : 'Sin señal: la canción sigue sonando. Para cambiarla usa el Centro de control del iPad.');
+  }
+  function renderProgress(){
+    if(!SP.track||!SP.dur){$('prog').style.width='0';return;}
+    var p=SP.prog+(SP.playing?Date.now()-SP.at:0);
+    $('prog').style.width=Math.min(100,p/SP.dur*100)+'%';
+  }
+  async function poll(){
+    if(!lsGet('sp_rt')){renderMusic();return;}
+    try{
+      var r=await api('GET','/me/player');
+      SP.online=true;
+      if(!r||r.status===204){SP.track=null;SP.playing=false;}
+      else if(r.status===401||r.status===403){setStatus('Sesión vencida o sin permiso. Vuelve a enlazar en Ajustes.');}
+      else if(r.ok){ var j=await r.json(); SP.track=j.item||null; SP.playing=!!j.is_playing; SP.prog=j.progress_ms||0; SP.dur=SP.track?SP.track.duration_ms:0; SP.at=Date.now(); }
+    }catch(e){ SP.online=false; }   // sin señal: se conserva la última canción conocida
+    renderMusic();
+  }
+  async function cmd(method,path){
+    if(!lsGet('sp_rt')){try{$('sdlg').showModal();}catch(e){} return;}
+    try{ var r=await api(method,path); SP.online=true; if(r&&r.status===404) setStatus('Abre la app de Spotify en este iPad y dale play una vez.'); }
+    catch(e){ SP.online=false; }
+    setTimeout(poll,500); renderMusic();
+  }
+  $('next').onclick=function(){cmd('POST','/me/player/next');};
+  $('prev').onclick=function(){cmd('POST','/me/player/previous');};
+  $('play').onclick=function(){cmd('PUT',SP.playing?'/me/player/pause':'/me/player/play'); SP.playing=!SP.playing; SP.at=Date.now(); renderMusic();};
+  setInterval(poll,3000);
+
+  /* ======================================================
+     Fechas, festivos de Colombia (Ley Emiliani) y pico y placa
+     ====================================================== */
+  function pad(n){return (n<10?'0':'')+n;}
+  function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+  function parseYmd(t){if(!t)return null;var p=t.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+  function today0(){var d=new Date();d.setHours(0,0,0,0);return d;}
+  function addDays(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return x;}
+  function daysBetween(a,b){return Math.round((b-a)/864e5);}
+  var DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  function fLong(d){return DIAS[d.getDay()]+' '+d.getDate()+' de '+MESES[d.getMonth()];}
+  function fShort(d){return d.getDate()+' de '+MESES[d.getMonth()]+' de '+d.getFullYear();}
+  function nextMon(d){var x=new Date(d);while(x.getDay()!==1)x.setDate(x.getDate()+1);return x;}
+  function easter(y){var a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+    h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+    mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da);}
+  var FEST={};
+  function festivos(y){
+    if(FEST[y])return FEST[y]; var s={}; function add(d){s[ymd(d)]=1;}
+    [[1,1],[5,1],[7,20],[8,7],[12,8],[12,25]].forEach(function(p){add(new Date(y,p[0]-1,p[1]));});
+    [[1,6],[3,19],[6,29],[8,15],[10,12],[11,1],[11,11]].forEach(function(p){add(nextMon(new Date(y,p[0]-1,p[1])));});
+    var E=easter(y); add(addDays(E,-3)); add(addDays(E,-2));
+    add(nextMon(addDays(E,39))); add(nextMon(addDays(E,60))); add(nextMon(addDays(E,68)));
+    return FEST[y]=s;
+  }
+  function isFestivo(d){return !!festivos(d.getFullYear())[ymd(d)];}
+
+  /* Reglas para carros particulares, consultadas el 10 de noviembre de 2026.
+     Cuando una alcaldía cambie la rotación, se actualiza este bloque. */
+  var CITIES={
+    villavicencio:{name:'Villavicencio',hours:[[390,570],[1020,1200]],map:{1:[5,6],2:[7,8],3:[9,0],4:[1,2],5:[3,4]},until:'2026-12-22',
+      note:'Decreto 015 de 2026. Aplica dentro del polígono definido por la Secretaría de Movilidad; las vías que lo bordean, como la Avenida 40 y la vía al Llano, se pueden usar.'},
+    bogota:{name:'Bogotá',hours:[[360,1260]],parity:{odd:[6,7,8,9,0],even:[1,2,3,4,5]},until:null,
+      note:'Días impares: restricción para placas 6, 7, 8, 9 y 0. Días pares: 1, 2, 3, 4 y 5. Hay jornadas extraordinarias que este tablero no conoce.'},
+    medellin:{name:'Medellín',hours:[[300,1200]],map:{1:[5,8],2:[1,4],3:[0,2],4:[3,6],5:[7,9]},until:'2027-01-29',
+      note:'Rotación del segundo semestre de 2026, para Medellín y el Valle de Aburrá. Algunas vías están exentas.'},
+    cali:{name:'Cali',hours:[[360,1140]],map:{1:[9,0],2:[1,2],3:[3,4],4:[5,6],5:[7,8]},until:'2026-12-31',
+      note:'Rotación del segundo semestre de 2026.'}
+  };
+  var PLATE = lsGet('plate')!==null ? parseInt(lsGet('plate'),10) : 6;
+  var MAIN = lsGet('mainCity') || 'villavicencio';
+  if(!CITIES[MAIN]) MAIN='villavicencio';
+  var VIEW = MAIN;   // la ciudad consultada vuelve a la principal al reabrir
+
+  function restricted(c,d,dig){
+    var w=d.getDay(); if(w===0||w===6||isFestivo(d)) return false;
+    if(c.parity) return (d.getDate()%2===1?c.parity.odd:c.parity.even).indexOf(dig)>-1;
+    return (c.map[w]||[]).indexOf(dig)>-1;
+  }
+  function h12(m){var h=Math.floor(m/60),mi=m%60,ap=h<12?'a. m.':'p. m.';h=h%12||12;return h+':'+pad(mi)+' '+ap;}
+  function hoursTxt(c){return c.hours.map(function(r){return h12(r[0])+' a '+h12(r[1]);}).join(' y ');}
+
+  function renderPico(){
+    var c=CITIES[VIEW], now=new Date(), t=today0(), mins=now.getHours()*60+now.getMinutes();
+    var box=$('pyp'), st=$('pState'), sub=$('pSub'), nx=$('pNext');
+    $('pDig').textContent='placa '+PLATE; $('cityBtn').textContent=c.name;
+    var cls='', state, detail;
+    if(restricted(c,t,PLATE)){
+      var cur=c.hours.filter(function(r){return mins>=r[0]&&mins<r[1];})[0];
+      var later=c.hours.filter(function(r){return mins<r[0];})[0];
+      if(cur){cls='crit';state='Pico y placa ahora';detail='Hasta las '+h12(cur[1])+'. Hoy: '+hoursTxt(c)+'.';}
+      else if(later){cls='warn';state='Hoy tienes pico y placa';detail='Empieza a las '+h12(later[0])+'. Horario: '+hoursTxt(c)+'.';}
+      else {state='Ya terminó el pico y placa de hoy';detail='Hoy fue de '+hoursTxt(c)+'.';}
+    } else {
+      state='Hoy puedes circular';
+      var w=t.getDay(); detail = isFestivo(t)?'Es festivo, no aplica.':(w===0||w===6)?'Fin de semana, no aplica.':'Hoy no le toca a tu placa.';
+    }
+    box.className='card pyp '+cls; st.textContent=state; sub.textContent=detail; sub.className='psub';
+    var d=addDays(t,1),k=0; while(k<40&&!restricted(c,d,PLATE)){d=addDays(d,1);k++;}
+    var nextTxt = k<40 ? 'Próximo: '+fLong(d)+'.' : '';
+    var u=parseYmd(c.until);
+    if(u && t>u){ nx.className='psub stale'; nx.textContent='Estas reglas vencieron el '+fShort(u)+'. Hay que actualizar el tablero.'; }
+    else { nx.className='psub'; nx.textContent=nextTxt+(u&&daysBetween(t,u)<=10?' Las reglas actuales vencen el '+fShort(u)+'.':''); }
+  }
+  function openDlg(d){try{d.showModal();}catch(e){d.setAttribute('open','');}}
+  var cd=$('cdlg');
+  function drawCities(){
+    var box=$('cList'); box.innerHTML='';
+    Object.keys(CITIES).forEach(function(id){
+      var c=CITIES[id], b=document.createElement('button'), t=today0();
+      b.setAttribute('aria-current', id===VIEW);
+      b.innerHTML='<b></b><span></span>'; b.firstChild.textContent=c.name+(id===MAIN?' (principal)':'');
+      b.lastChild.textContent=restricted(c,t,PLATE)?'Hoy tienes pico y placa':'Hoy libre';
+      b.onclick=function(){VIEW=id;renderPico();drawCities();};
+      box.appendChild(b);
+    });
+    $('cNote').textContent=CITIES[VIEW].note;
+  }
+  $('cityBtn').onclick=function(){drawCities();openDlg(cd);};
+  $('cClose').onclick=function(){cd.close();};
+
+  /* ======================================================
+     Documentos (SOAT y técnico-mecánica) y mantenimiento por km
+     ====================================================== */
+  function loadJ(k,def){try{var v=JSON.parse(lsGet(k)||'null');return v||def;}catch(e){return def;}}
+  var DOCS=loadJ('docs',{soat:{vence:'',snooze:''},rtm:{vence:'',snooze:''}});
+  var DOCNAME={soat:'SOAT',rtm:'Revisión técnico-mecánica'};
+  var MANT=loadJ('mant',{odo:null,items:[
+    {id:'aceite',name:'Cambio de aceite y filtro',every:5000,last:null},
+    {id:'aire',name:'Filtro de aire',every:10000,last:null},
+    {id:'llantas',name:'Rotación de llantas',every:10000,last:null},
+    {id:'alin',name:'Alineación y balanceo',every:10000,last:null}]});
+  function saveDocs(){lsSet('docs',JSON.stringify(DOCS));}
+  function saveMant(){lsSet('mant',JSON.stringify(MANT));}
+  var SESS={};   // avisos cerrados "por ahora" en esta sesión
+
+  function dueList(){
+    var out=[], t=today0();
+    Object.keys(DOCS).forEach(function(k){
+      var v=parseYmd(DOCS[k].vence); if(!v||SESS[k]) return;
+      var left=daysBetween(t,v); if(left>2) return;
+      if(left>=0 && DOCS[k].snooze && t<parseYmd(DOCS[k].snooze)) return;
+      out.push({kind:'doc',id:k,left:left,crit:left<0});
+    });
+    if(MANT.odo!=null) MANT.items.forEach(function(it){
+      if(it.last==null||SESS[it.id]) return;
+      var left=Math.round(it.last+it.every-MANT.odo); if(left>300) return;
+      out.push({kind:'mant',id:it.id,left:left,crit:left<0});
+    });
+    return out;
+  }
+  function renderAlertChip(){
+    var L=dueList(), b=$('alertBtn');
+    b.hidden=!L.length; b.textContent=L.length===1?'1 aviso':L.length+' avisos';
+    b.className='chip alert'+(L.some(function(x){return x.crit;})?' crit':'');
+  }
+  var ad=$('adlg'), pendingAlert=false;
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+  function btn(txt,cls,fn){var b=el('button','btn sm '+(cls||''),txt);b.onclick=fn;return b;}
+  function drawAlerts(){
+    var box=$('aList'); box.innerHTML=''; var L=dueList();
+    if(!L.length){ad.close();renderAlertChip();return;}
+    L.forEach(function(a){
+      var card=el('div','aitem'+(a.crit?' crit':'')), row=el('div','row'), more=el('div','more');
+      if(a.kind==='doc'){
+        var d=DOCS[a.id], v=parseYmd(d.vence);
+        card.appendChild(el('b',null,DOCNAME[a.id]));
+        card.appendChild(el('p',null, a.left<0 ? 'Venció el '+fShort(v)+' (hace '+(-a.left)+(a.left===-1?' día':' días')+'). Manejar sin este documento vigente te expone a multa e inmovilización del carro.'
+          : a.left===0 ? 'Vence hoy, '+fShort(v)+'.' : 'Vence el '+fShort(v)+' (en '+a.left+(a.left===1?' día':' días')+').'));
+        var inp=el('input'); inp.type='date'; var nv=new Date(v); nv.setFullYear(nv.getFullYear()+1); inp.value=ymd(nv);
+        row.appendChild(btn('Ya lo compré','solid',function(){more.className='more on';more.innerHTML='';
+          more.appendChild(el('span','psub','Nueva fecha de vencimiento:')); more.appendChild(inp);
+          more.appendChild(btn('Guardar','solid',function(){if(!inp.value)return;d.vence=inp.value;d.snooze='';saveDocs();drawAlerts();renderAlertChip();}));}));
+        if(a.left>=0){
+          var sel=el('select'); [[1,'Mañana'],[3,'En 3 días'],[7,'En 7 días']].forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];sel.appendChild(op);});
+          var dt=el('input'); dt.type='date';
+          row.appendChild(btn('Recordarme después','',function(){more.className='more on';more.innerHTML='';
+            more.appendChild(sel); more.appendChild(el('span','psub','o el día')); more.appendChild(dt);
+            more.appendChild(btn('Listo','solid',function(){d.snooze= dt.value || ymd(addDays(today0(),parseInt(sel.value,10)));saveDocs();drawAlerts();renderAlertChip();}));}));
+        }
+      } else {
+        var it=MANT.items.filter(function(x){return x.id===a.id;})[0];
+        card.appendChild(el('b',null,it.name));
+        card.appendChild(el('p',null, a.left<0 ? 'Pasado por '+(-a.left).toLocaleString('es-CO')+' km.' : 'Faltan '+a.left.toLocaleString('es-CO')+' km.'));
+        row.appendChild(btn('Hecho','solid',function(){it.last=Math.round(MANT.odo);saveMant();drawAlerts();renderAlertChip();}));
+      }
+      row.appendChild(btn('Cerrar por ahora','ghost',function(){SESS[a.id]=1;drawAlerts();renderAlertChip();}));
+      card.appendChild(row); card.appendChild(more); box.appendChild(card);
+    });
+  }
+  function showAlerts(force){
+    if(!dueList().length) return;
+    if(driving && !force){pendingAlert=true;return;}   // nunca interrumpe mientras manejas
+    pendingAlert=false; drawAlerts(); if(!ad.open) openDlg(ad);
+  }
+  $('alertBtn').onclick=function(){showAlerts(true);};
+  $('aClose').onclick=function(){dueList().forEach(function(a){SESS[a.id]=1;});ad.close();renderAlertChip();};
+  // "al encender": al abrir el tablero y al volver a él tras 2 horas o más
+  var lastShown=0;
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible' && Date.now()-lastShown>2*3600e3){SESS={};lastShown=Date.now();renderAlertChip();setTimeout(showAlerts,1200);}
+  });
+
+  /* ======================================================
+     Ajustes
+     ====================================================== */
+  var sd=$('sdlg');
+  Object.keys(CITIES).forEach(function(id){var o=el('option',null,CITIES[id].name);o.value=id;$('mainCity').appendChild(o);});
+  function drawMant(){
+    var box=$('mantList'); box.innerHTML='';
+    MANT.items.forEach(function(it){
+      var r=el('div','mrow'), name=el('div',null,it.name), inp=el('input');
+      inp.type='number'; inp.inputMode='numeric'; inp.value=it.every; inp.setAttribute('aria-label',it.name+': cada cuántos km'); inp.dataset.id=it.id;
+      var info = MANT.odo==null||it.last==null ? 'Pon el kilometraje para empezar' : 'Faltan '+Math.round(it.last+it.every-MANT.odo).toLocaleString('es-CO')+' km';
+      name.appendChild(el('small',null,'Cada '+it.every.toLocaleString('es-CO')+' km · '+info));
+      r.appendChild(name); r.appendChild(inp);
+      r.appendChild(btn('Hecho hoy','',function(){var o=parseFloat($('odoIn').value);if(!(o>=0))return;MANT.odo=o;it.last=o;saveMant();drawMant();renderAlertChip();}));
+      box.appendChild(r);
+    });
+  }
+  function saveSettings(){
+    var t=parseFloat($('tank').value); if(t>0){TANK=t;lsSet('tank',t);}
+    var p=parseInt($('plate').value,10); if(p>=0&&p<=9){PLATE=p;lsSet('plate',p);}
+    MAIN=$('mainCity').value; lsSet('mainCity',MAIN); VIEW=MAIN;
+    lsSet('night',$('nightMode').value);
+    ['soat','rtm'].forEach(function(k){var v=$(k+'D').value; if(v!==DOCS[k].vence){DOCS[k].vence=v;DOCS[k].snooze='';delete SESS[k];}});
+    saveDocs();
+    var o=parseFloat($('odoIn').value);
+    if(o>=0 && (MANT.odo==null || Math.abs(o-MANT.odo)>=1)){ MANT.odo=o; MANT.items.forEach(function(it){if(it.last==null)it.last=o;}); }
+    Array.prototype.forEach.call($('mantList').querySelectorAll('input'),function(i){
+      var v=parseInt(i.value,10); var it=MANT.items.filter(function(x){return x.id===i.dataset.id;})[0]; if(v>0&&it)it.every=v;});
+    saveMant(); lsSet('sp_cid',$('cid').value.trim());
+    renderCar(); renderPico(); applyNight(); renderAlertChip();
+  }
+  $('setBtn').onclick=function(){
+    $('redir').textContent=REDIR; $('cid').value=lsGet('sp_cid')||''; $('tank').value=TANK; $('plate').value=PLATE;
+    $('mainCity').value=MAIN; $('nightMode').value=lsGet('night')||'auto';
+    $('soatD').value=DOCS.soat.vence; $('rtmD').value=DOCS.rtm.vence;
+    $('odoIn').value=MANT.odo==null?'':Math.round(MANT.odo); drawMant(); openDlg(sd);
+  };
+  $('sClose').onclick=function(){sd.close();};
+  $('sSave').onclick=function(){saveSettings();sd.close();showAlerts();};
+  $('spIn').onclick=function(){saveSettings();spLogin();};
+  $('spOut').onclick=function(){['sp_at','sp_rt','sp_exp','sp_v'].forEach(lsDel);SP.track=null;sd.close();renderMusic();};
+
+  /* ======================================================
+     Modo manejo, modo noche y odómetro
+     ====================================================== */
+  var driving=false, slowSecs=0, tk=0;
+  function applyNight(){
+    var m=lsGet('night')||'auto', h=new Date().getHours();
+    document.body.classList.toggle('night', m==='on' || (m==='auto' && (h>=18||h<6)));
+  }
+  setInterval(function(){
+    if(!S.demo){
+      if(MANT.odo!=null){MANT.odo+=S.speed/3600; if(tk%20===0)saveMant();}
+      if(S.speed>10){ if(!driving){driving=true; [sd,$('dlg'),cd].forEach(function(d){if(d.open)d.close();});} slowSecs=0; }
+      else if(S.speed<3 && driving){ if(++slowSecs>=5){driving=false; if(pendingAlert)showAlerts();} }
+    } else if(driving){ driving=false; }
+    document.body.classList.toggle('driving',driving);
+    if(tk%15===0){renderPico();applyNight();renderAlertChip();}
+    tk++;
+  },1000);
+
+  renderPico(); applyNight(); renderAlertChip(); lastShown=Date.now(); setTimeout(showAlerts,1500);
+
+  /* Conexión */
+  function net(){var on=navigator.onLine;$('netDot').className='dot '+(on?'ok':'bad');$('netTxt').textContent=on?'En línea':'Sin internet';if(on)poll();else{SP.online=false;renderMusic();}}
+  window.addEventListener('online',net);window.addEventListener('offline',net);
+
+  /* Mapa decorativo (el mapa real va en la app de navegación) */
+  var cv=$('map'), cx=cv.getContext('2d');
+  function drawMap(){
+    var r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+    if(r.width<10){return;}
+    if(cv.width!==Math.round(r.width*dpr)){cv.width=Math.round(r.width*dpr);cv.height=Math.round(r.height*dpr);}
+    var w=cv.width,h=cv.height; cx.clearRect(0,0,w,h); cx.strokeStyle='#1c2631'; cx.lineWidth=2*dpr;
+    var off=(S.trip*40*dpr)%(60*dpr);
+    for(var x=-60*dpr;x<w+60*dpr;x+=60*dpr){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x+h*.4,h);cx.stroke();}
+    for(var y=-off;y<h+60*dpr;y+=60*dpr){cx.beginPath();cx.moveTo(0,y);cx.lineTo(w,y+10*dpr);cx.stroke();}
+    cx.strokeStyle='#3ea6ff';cx.lineWidth=6*dpr;cx.lineCap='round';cx.beginPath();cx.moveTo(w*.5,h*.9);cx.quadraticCurveTo(w*.5,h*.5,w*.72,h*.15);cx.stroke();
+    cx.fillStyle='#fff';cx.beginPath();cx.moveTo(w*.5,h*.72);cx.lineTo(w*.5-12*dpr,h*.72+26*dpr);cx.lineTo(w*.5+12*dpr,h*.72+26*dpr);cx.closePath();cx.fill();
+  }
+  window.addEventListener('resize',drawMap);
+
+
+
+  /* Funciona sin internet una vez instalada */
+  if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){} }
+
+  renderCar(); renderMusic(); net(); drawMap(); poll();
+})();
+</script>
+</body>
+</html>
