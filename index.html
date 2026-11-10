@@ -104,6 +104,14 @@ body.routing .dest,body.routing .favs{display:none}
 .ctrl button:active{transform:scale(.94)}
 .ctrl svg{width:30px;height:30px;fill:currentColor}
 .status{font-size:12px;color:var(--muted);min-height:16px}
+.plists{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:6px;overflow:hidden}
+.music.haspl .art{max-height:22%}
+.music.haspl{gap:6px}
+.pl{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:4px 10px 4px 5px;border-radius:12px;border:1px solid var(--line);background:#1a2027;color:var(--text);font:600 15px var(--body);text-align:left}
+.pl img,.pl .ph{width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;background:linear-gradient(135deg,#1d3b57,#2b2146)}
+.pl span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.pl.on{border-color:var(--accent);color:var(--accent)}
+.pl:active{transform:scale(.98)}
 /* combustible */
 .fuel{grid-area:fu;flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px 18px;padding:12px 18px}
 .gauge{flex:1.4;min-width:180px}
@@ -209,6 +217,7 @@ body.night .ctrl button.play{color:#020a12}
     <div><div class="title" id="trackTitle">Sin conectar</div><div class="artist" id="trackArtist">Abre Ajustes para enlazar Spotify</div></div>
     <div class="bar"><i id="prog"></i></div>
     <div class="status" id="spStatus"></div>
+    <div class="plists" id="plists" aria-label="Listas recientes"></div>
     <div class="ctrl">
       <button id="prev" aria-label="Canción anterior"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
       <button id="play" class="play" aria-label="Reproducir o pausar"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
@@ -402,7 +411,7 @@ body.night .ctrl button.play{color:#020a12}
     var ch=b64(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)));
     location.href='https://accounts.spotify.com/authorize?'+new URLSearchParams({
       client_id:cid,response_type:'code',redirect_uri:REDIR,code_challenge_method:'S256',code_challenge:ch,
-      scope:'user-read-playback-state user-modify-playback-state'}).toString();
+      scope:'user-read-playback-state user-modify-playback-state user-read-recently-played playlist-read-private'}).toString();
   }
   async function tokenCall(params){
     var r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(params).toString()});
@@ -429,7 +438,7 @@ body.night .ctrl button.play{color:#020a12}
       await tokenCall({grant_type:'authorization_code',code:code,redirect_uri:REDIR,client_id:lsGet('sp_cid'),code_verifier:lsGet('sp_v')});
     }catch(e){ setStatus('No se pudo enlazar. Revisa el Client ID y el Redirect URI.'); }
     history.replaceState(null,'',location.pathname);
-    poll();
+    poll(); if(window.loadPlSoon)setTimeout(window.loadPlSoon,1200);
   })();
 
   function setStatus(t){$('spStatus').textContent=t;}
@@ -457,7 +466,7 @@ body.night .ctrl button.play{color:#020a12}
       SP.online=true;
       if(!r||r.status===204){SP.track=null;SP.playing=false;}
       else if(r.status===401||r.status===403){setStatus('Sesión vencida o sin permiso. Vuelve a enlazar en Ajustes.');}
-      else if(r.ok){ var j=await r.json(); SP.track=j.item||null; SP.playing=!!j.is_playing; SP.prog=j.progress_ms||0; SP.dur=SP.track?SP.track.duration_ms:0; SP.at=Date.now(); }
+      else if(r.ok){ var j=await r.json(); SP.track=j.item||null; SP.playing=!!j.is_playing; SP.prog=j.progress_ms||0; SP.dur=SP.track?SP.track.duration_ms:0; SP.at=Date.now(); SP.ctx=(j.context&&j.context.uri)||''; markPl(); }
     }catch(e){ SP.online=false; }   // sin señal: se conserva la última canción conocida
     renderMusic();
   }
@@ -471,6 +480,57 @@ body.night .ctrl button.play{color:#020a12}
   $('prev').onclick=function(){cmd('POST','/me/player/previous');};
   $('play').onclick=function(){cmd('PUT',SP.playing?'/me/player/pause':'/me/player/play'); SP.playing=!SP.playing; SP.at=Date.now(); renderMusic();};
   setInterval(poll,3000);
+
+  /* Listas de reproducción usadas recientemente: solo las que caben, para no llenar el panel */
+  var PL=[]; try{PL=JSON.parse(lsGet('sp_pl')||'[]');}catch(e){}
+  function markPl(){ Array.prototype.forEach.call($('plists').children,function(b){b.classList.toggle('on',b.dataset.uri===SP.ctx);}); }
+  function fitPl(){
+    var box=$('plists'), h=box.clientHeight, n=Math.max(0,Math.min(3,PL.length,Math.floor((h+6)/52)));
+    Array.prototype.forEach.call(box.children,function(b,i){b.hidden=i>=n;});
+  }
+  function drawPl(){
+    var box=$('plists'); box.innerHTML='';
+    if(!lsGet('sp_rt')) return;
+    PL.forEach(function(p){
+      var b=document.createElement('button'); b.className='pl'; b.dataset.uri=p.uri; b.setAttribute('aria-label','Reproducir '+p.name);
+      if(p.img){var im=document.createElement('img');im.alt='';im.src=p.img;im.onerror=function(){im.replaceWith(Object.assign(document.createElement('i'),{className:'ph'}));};b.appendChild(im);}
+      else { var ph=document.createElement('i'); ph.className='ph'; b.appendChild(ph); }
+      var t=document.createElement('span'); t.textContent=p.name; b.appendChild(t);
+      b.onclick=async function(){
+        try{ var tk=await spToken(); var r=await fetch('https://api.spotify.com/v1/me/player/play',{method:'PUT',headers:{Authorization:'Bearer '+tk,'Content-Type':'application/json'},body:JSON.stringify({context_uri:p.uri})});
+          if(r.status===404) setStatus('Abre la app de Spotify en este iPad y dale play una vez.'); else {SP.ctx=p.uri; markPl();}
+        }catch(e){ setStatus('Sin señal: no puedo cambiar de lista ahora.'); }
+        setTimeout(poll,700);
+      };
+      box.appendChild(b);
+    });
+    document.querySelector('.music').classList.toggle('haspl',PL.length>0);
+    markPl(); setTimeout(fitPl,50);
+  }
+  async function loadPl(){
+    if(!lsGet('sp_rt')||!navigator.onLine) return;
+    try{
+      var r=await api('GET','/me/player/recently-played?limit=50');
+      if(!r) return;
+      if(r.status===401||r.status===403){ setStatus('Vuelve a tocar "Conectar Spotify" en Ajustes para ver tus listas recientes.'); return; }
+      var j=await r.json(), seen={}, ids=[];
+      (j.items||[]).forEach(function(it){ var c=it.context; if(c&&c.type==='playlist'&&!seen[c.uri]){seen[c.uri]=1;ids.push(c.uri);} });
+      var out=[];
+      for(var i=0;i<ids.length&&out.length<3;i++){
+        var id=ids[i].split(':').pop();
+        try{ var pr=await api('GET','/playlists/'+id+'?fields=name,uri,images');
+          if(pr&&pr.ok){ var pj=await pr.json(); out.push({uri:pj.uri||ids[i],name:pj.name,img:(pj.images&&pj.images.length)?pj.images[pj.images.length-1].url:''}); } }catch(e){}
+      }
+      if(out.length<3){   // completa con tus propias listas si las recientes no alcanzan
+        var mr=await api('GET','/me/playlists?limit=10');
+        if(mr&&mr.ok){ var mj=await mr.json(); (mj.items||[]).forEach(function(p){ if(out.length<3&&!out.some(function(o){return o.uri===p.uri;})) out.push({uri:p.uri,name:p.name,img:(p.images&&p.images.length)?p.images[p.images.length-1].url:''}); }); }
+      }
+      PL=out; lsSet('sp_pl',JSON.stringify(PL)); drawPl();
+    }catch(e){}
+  }
+  window.addEventListener('resize',function(){setTimeout(fitPl,120);});
+  if(window.ResizeObserver){ try{ new ResizeObserver(function(){fitPl();}).observe($('plists')); }catch(e){} }
+  window.loadPlSoon=loadPl; drawPl(); setTimeout(loadPl,1500); setInterval(loadPl,5*60*1000);
 
   /* ======================================================
      Fechas, festivos de Colombia (Ley Emiliani) y pico y placa
@@ -690,7 +750,7 @@ body.night .ctrl button.play{color:#020a12}
   $('sClose').onclick=function(){sd.close();};
   $('sSave').onclick=function(){saveSettings();sd.close();showAlerts();};
   $('spIn').onclick=function(){saveSettings();spLogin();};
-  $('spOut').onclick=function(){['sp_at','sp_rt','sp_exp','sp_v'].forEach(lsDel);SP.track=null;sd.close();renderMusic();};
+  $('spOut').onclick=function(){['sp_at','sp_rt','sp_exp','sp_v','sp_pl'].forEach(lsDel); $('plists').innerHTML='';SP.track=null;sd.close();renderMusic();};
 
   /* ======================================================
      Modo manejo, modo noche y odómetro
