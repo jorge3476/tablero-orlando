@@ -194,7 +194,7 @@ body.night .ctrl button.play{color:#020a12}
     <div class="map">
       <canvas id="map"></canvas><div id="tmap" hidden></div>
       <div class="guide" id="guide" hidden><div class="gman" id="gMan">↑</div><div class="gtxt"><div class="gdist" id="gDist"></div><div class="gmsg" id="gMsg"></div></div></div>
-      <div class="mapbtns" id="mapBtns" hidden><button id="mCenter" aria-label="Centrar en mi posición">◎</button><button id="mTraffic" aria-pressed="true">Tráfico</button><button id="mVoice" aria-pressed="true" aria-label="Voz">🔊</button></div>
+      <div class="mapbtns" id="mapBtns" hidden><button id="mCenter" aria-label="Centrar en mi posición">◎</button><button id="mTraffic" aria-pressed="true">Tráfico</button></div>
       <div class="note" id="mapNote">Pon tu clave de TomTom en Ajustes para ver el mapa y navegar aquí.</div>
       <div class="results" id="results" hidden></div>
     </div>
@@ -281,6 +281,17 @@ body.night .ctrl button.play{color:#020a12}
   <label for="cid">Client ID de Spotify</label>
   <input id="cid" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
   <div class="row"><button class="btn ghost" id="spOut">Desconectar</button><button class="btn" id="spIn">Conectar Spotify</button></div>
+
+  <h3>Respaldo</h3>
+  <p>Tus datos se guardan solo en este iPad. Si se borran los datos del navegador o reinstalas la app, se pierden. Guarda un respaldo y restáuralo cuando lo necesites. Incluye tu clave de TomTom: no lo compartas.</p>
+  <div class="row" style="justify-content:flex-start"><button class="btn" id="bkSave">Guardar archivo</button><button class="btn" id="bkCopy">Copiar código</button><button class="btn" id="bkLoad">Restaurar</button></div>
+  <input id="bkFile" type="file" accept=".json,application/json,text/plain" hidden>
+  <div id="bkPasteBox" hidden>
+    <label for="bkPaste">O pega aquí el código del respaldo</label>
+    <textarea id="bkPaste" rows="3" style="width:100%;border-radius:10px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:10px;font-size:14px;-webkit-user-select:text;user-select:text"></textarea>
+    <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="btn" id="bkFileBtn">Elegir archivo</button><button class="btn solid" id="bkApply">Restaurar este código</button></div>
+  </div>
+  <p id="bkMsg" style="margin-top:8px"></p>
 
   <div class="row"><button class="btn ghost" id="sClose">Cerrar</button><button class="btn solid" id="sSave">Guardar</button></div>
 </dialog>
@@ -887,22 +898,57 @@ body.night .ctrl button.play{color:#020a12}
 
   /* ---- voz en español ---- */
   var voiceReady=false;
-  function unlockVoice(){ if(voiceReady||!('speechSynthesis' in window))return; try{var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);voiceReady=true;}catch(e){} }
+  function unlockVoice(){ return; if(voiceReady||!('speechSynthesis' in window))return; try{var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);voiceReady=true;}catch(e){} }
   function say(t){
+    return;   // la voz está desactivada: solo suena la música
     if(!voiceOn||!t||!('speechSynthesis' in window)) return;
     try{ var u=new SpeechSynthesisUtterance(t); u.lang='es-CO';
       var v=speechSynthesis.getVoices().filter(function(x){return /^es/i.test(x.lang);});
       var pick=v.filter(function(x){return /CO|MX|419|US/.test(x.lang);})[0]||v[0]; if(pick)u.voice=pick;
       u.rate=1; speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){}
   }
-  $('mVoice').onclick=function(){unlockVoice();voiceOn=!voiceOn;lsSet('tt_voice',voiceOn?'1':'0');this.setAttribute('aria-pressed',voiceOn);if(voiceOn)say('Voz activada.');};
-  $('mVoice').setAttribute('aria-pressed',voiceOn);
   $('mCenter').onclick=function(){follow=true; if(S.lat!=null&&map)map.setView([S.lat,S.lon],R?17:16); else note('Activa el GPS con el botón de arriba ("Modo demo") para ver tu posición.');};
   $('mTraffic').onclick=function(){ if(!map||!trafficLy)return; var on=!map.hasLayer(trafficLy); if(on)trafficLy.addTo(map); else map.removeLayer(trafficLy); lsSet('tt_traffic',on?'1':'0'); this.setAttribute('aria-pressed',on); };
   window.addEventListener('resize',function(){ if(map) setTimeout(function(){map.invalidateSize();},150); });
   window.addEventListener('online',function(){ if(key()&&!map) navInit(); });
   navInit();
 
+
+  /* ======================================================
+     Respaldo y restauración de datos
+     ====================================================== */
+  var BK_KEYS=['tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
+  function bkMake(){var o={app:'tablero-orlando',v:1,fecha:new Date().toISOString(),datos:{}};BK_KEYS.forEach(function(k){var v=lsGet(k);if(v!==null)o.datos[k]=v;});return JSON.stringify(o);}
+  function bkMsg(t){$('bkMsg').textContent=t;}
+  function bkApply(txt){
+    try{
+      txt=(txt||'').trim(); if(txt && txt.charAt(0)!=='{') txt=decodeURIComponent(escape(atob(txt)));
+      var o=JSON.parse(txt); if(!o||o.app!=='tablero-orlando'||!o.datos) throw 0;
+      Object.keys(o.datos).forEach(function(k){ if(BK_KEYS.indexOf(k)>-1) lsSet(k,o.datos[k]); });
+      bkMsg('Respaldo restaurado. Recargando…'); setTimeout(function(){location.reload();},900);
+    }catch(e){ bkMsg('Ese respaldo no es válido. Revisa que copiaste el código completo.'); }
+  }
+  $('bkSave').onclick=function(){
+    try{
+      var blob=new Blob([bkMake()],{type:'application/json'}), a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download='respaldo-tablero-orlando-'+ymd(new Date())+'.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      bkMsg('Listo. Guárdalo en Archivos (iCloud Drive) o envíatelo por correo. Si no se descargó, usa "Copiar código".');
+    }catch(e){ bkMsg('Este navegador no deja descargar. Usa "Copiar código".'); }
+  };
+  $('bkCopy').onclick=function(){
+    var code=btoa(unescape(encodeURIComponent(bkMake())));
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(code).then(function(){bkMsg('Código copiado. Pégalo en Notas o en un mensaje para ti mismo.');},
+        function(){ $('bkPasteBox').hidden=false; $('bkPaste').value=code; bkMsg('Copia el código del recuadro y guárdalo en Notas.'); });
+    } else { $('bkPasteBox').hidden=false; $('bkPaste').value=code; bkMsg('Copia el código del recuadro y guárdalo en Notas.'); }
+  };
+  $('bkLoad').onclick=function(){ $('bkPasteBox').hidden=false; $('bkPaste').value=''; $('bkPaste').focus(); bkMsg('Pega el código o elige el archivo del respaldo.'); };
+  $('bkFileBtn').onclick=function(){ $('bkFile').click(); };
+  $('bkFile').onchange=function(){ var f=this.files&&this.files[0]; if(!f)return; var r=new FileReader(); r.onload=function(){bkApply(r.result);}; r.readAsText(f); };
+  $('bkApply').onclick=function(){ bkApply($('bkPaste').value); };
+  // pide al navegador que no borre estos datos por su cuenta (si lo permite)
+  try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
 
   /* Funciona sin internet una vez instalada */
   if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){} }
