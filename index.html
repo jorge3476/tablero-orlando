@@ -27,10 +27,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--body);overflow:hid
   padding:max(12px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
   -webkit-user-select:none;user-select:none;touch-action:manipulation}
 .app{height:100%;display:grid;gap:12px;min-height:0;
-  grid-template-columns:1.05fr 1.3fr 1fr;grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-columns:minmax(0,1.05fr) minmax(0,1.3fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;
   grid-template-areas:"h h h" "sp nv mu" "pp fu fu"}
 @media (orientation:portrait){
-  .app{grid-template-columns:1fr 1fr;grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto;
+  .app{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto;
     grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto auto;grid-template-areas:"h h" "sp mu" "nv nv" "pp pp" "fu fu"}
 }
 header{grid-area:h;display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--muted);font-size:15px}
@@ -88,7 +88,7 @@ header b{white-space:nowrap}
 .gauge .ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
 .stat{min-width:88px}.stat strong{display:block;font-family:var(--display);font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
 .stat span{font-size:13px;color:var(--muted)}
-.btn{min-height:52px;padding:0 20px;border-radius:14px;border:1px solid var(--accent);background:transparent;color:var(--accent);font:600 16px var(--body)}
+.btn{min-height:52px;align-items:center;justify-content:center;padding:0 20px;border-radius:14px;border:1px solid var(--accent);background:transparent;color:var(--accent);font:600 16px var(--body)}
 .btn.solid{background:var(--accent);color:#04121f}
 dialog{margin:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:18px;padding:22px;width:min(460px,92vw)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
@@ -99,15 +99,22 @@ dialog input{width:100%;min-height:48px;border-radius:10px;border:1px solid var(
 dialog code{display:block;word-break:break-all;background:#0e1319;border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;margin-top:4px;-webkit-user-select:text;user-select:text}
 dialog .row{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-wrap:wrap}
 /* pico y placa */
-.pyp{grid-area:pp;padding:12px 16px;gap:4px;border-left:4px solid var(--good)}
+.pyp{grid-area:pp;padding:12px 16px;gap:4px;border-left:4px solid var(--good);justify-content:center}
+.pclose{background:none;border:0;color:var(--muted);font-size:22px;line-height:1;width:36px;height:40px;flex-shrink:0}
+.pyp .top{gap:6px}
+.app.nopp{grid-template-areas:"h h h" "sp nv mu" "fu fu fu"}
+.app.nopp .pyp{display:none}
+@media (orientation:portrait){.app.nopp{grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto;grid-template-areas:"h h" "sp mu" "nv nv" "fu fu"}}
+#ppShow{display:none}.app.nopp #ppShow{display:inline-flex}
 .pyp.warn{border-left-color:var(--warn)}.pyp.crit{border-left-color:var(--crit)}
 .pyp .label{white-space:nowrap}
 .pyp .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.citybtn{white-space:nowrap;flex-shrink:0;background:none;border:1px solid var(--line);border-radius:999px;color:var(--text);font:600 14px var(--body);padding:4px 12px;min-height:34px}
+.citybtn{white-space:nowrap;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;background:none;border:1px solid var(--line);border-radius:999px;color:var(--text);font:600 14px var(--body);padding:4px 12px;min-height:34px}
 .citybtn::after{content:" ▾";color:var(--muted)}
-.pstate{font-family:var(--display);font-size:24px;font-weight:600;line-height:1.1}
+.pstate{text-wrap:balance;font-family:var(--display);font-size:clamp(24px,2.7vw,31px);font-weight:600;line-height:1.05;margin-top:2px}
 .pyp.warn .pstate{color:var(--warn)}.pyp.crit .pstate{color:var(--crit)}.pyp .pstate{color:var(--good)}
-.psub{font-size:13px;color:var(--muted)}
+.psub{font-size:clamp(14px,1.5vw,16px);color:var(--muted);line-height:1.3}
+#pNext{color:var(--text)}
 .psub.stale{color:var(--warn)}
 /* avisos */
 .chip.alert{border-color:var(--warn);color:var(--warn)}.chip.alert.crit{border-color:var(--crit);color:var(--crit)}
@@ -160,7 +167,7 @@ body.night .ctrl button.play{color:#020a12}
 
   <section class="card nav" aria-label="Navegación">
     <span class="label">Navegación</span>
-    <div class="map"><canvas id="map"></canvas><div class="note">Escribe el destino y elige la app. Se abre con la ruta lista; para verla junto al tablero usa Split View.</div></div>
+    <div class="map"><canvas id="map"></canvas><div class="note">Escribe el destino y elige la app: abre con la ruta lista.</div></div>
     <div class="favs" id="favs"></div>
     <div class="dest"><input id="destIn" type="text" placeholder="¿A dónde vamos?" autocomplete="off" aria-label="Destino"><button class="btn" id="favAdd">Guardar</button></div>
     <div class="navbtns">
@@ -184,7 +191,7 @@ body.night .ctrl button.play{color:#020a12}
   </section>
 
   <section class="card pyp" id="pyp" aria-label="Pico y placa">
-    <div class="top"><span class="label">Pico y placa · <span id="pDig">6</span></span><button class="citybtn" id="cityBtn">Villavicencio</button></div>
+    <div class="top"><span class="label">Pico y placa</span><span id="pDig" hidden></span><span style="display:flex;align-items:center;gap:2px"><button class="citybtn" id="cityBtn">Villavicencio</button><button class="pclose" id="ppHide" aria-label="Ocultar pico y placa">×</button></span></div>
     <div class="pstate" id="pState">Hoy puedes circular</div>
     <div class="psub" id="pSub"></div>
     <div class="psub" id="pNext"></div>
@@ -199,7 +206,7 @@ body.night .ctrl button.play{color:#020a12}
     <div class="stat"><strong id="range">0</strong><span>km de autonomía</span></div>
     <div class="stat"><strong id="kmgal">0.0</strong><span>km por galón</span></div>
     <div class="stat"><strong id="galkm">0.000</strong><span>galones por km</span></div>
-    <button class="btn" id="refuelBtn">Registrar tanqueo</button>
+    <button class="btn" id="ppShow" aria-label="Mostrar pico y placa">Pico y placa</button><button class="btn" id="refuelBtn" aria-label="Registrar tanqueo">Registrar ⛽️</button>
   </section>
 </div>
 
@@ -340,11 +347,15 @@ body.night .ctrl button.play{color:#020a12}
   document.querySelectorAll('.navbtns button').forEach(function(b){
     b.onclick=function(){
       var q=encodeURIComponent($('destIn').value.trim()); if(!q){$('destIn').focus();return;}
-      var app=b.getAttribute('data-app'), url;
-      if(app==='google') url='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+q;
-      else if(app==='waze') url='https://waze.com/ul?navigate=yes&q='+q;
-      else url='https://maps.apple.com/?dirflg=d&daddr='+q;
-      window.open(url,'_blank');
+      var app=b.getAttribute('data-app'), appUrl, webUrl;
+      if(app==='google'){ appUrl='comgooglemaps://?daddr='+q+'&directionsmode=driving'; webUrl='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+q; }
+      else if(app==='waze'){ appUrl='waze://?q='+q+'&navigate=yes'; webUrl='https://waze.com/ul?navigate=yes&q='+q; }
+      else { appUrl='maps://?daddr='+q+'&dirflg=d'; webUrl='https://maps.apple.com/?dirflg=d&daddr='+q; }
+      // Intenta abrir la app; si en 1,8 s seguimos aquí (app no instalada o rechazada), abre la web.
+      var left=false; var onHide=function(){left=true;};
+      document.addEventListener('visibilitychange',onHide,{once:true}); window.addEventListener('pagehide',onHide,{once:true}); window.addEventListener('blur',onHide,{once:true});
+      location.href=appUrl;
+      setTimeout(function(){ if(!left && document.visibilityState==='visible'){ window.open(webUrl,'_blank'); } },1800);
     };
   });
   drawFavs();
@@ -486,6 +497,10 @@ body.night .ctrl button.play{color:#020a12}
   function h12(m){var h=Math.floor(m/60),mi=m%60,ap=h<12?'a. m.':'p. m.';h=h%12||12;return h+':'+pad(mi)+' '+ap;}
   function hoursTxt(c){return c.hours.map(function(r){return h12(r[0])+' a '+h12(r[1]);}).join(' y ');}
 
+  function setPP(hidden){document.querySelector('.app').classList.toggle('nopp',hidden);lsSet('ppHidden',hidden?'1':'');}
+  $('ppHide').onclick=function(){setPP(true);};
+  $('ppShow').onclick=function(){setPP(false);};
+  setPP(lsGet('ppHidden')==='1');
   function renderPico(){
     var c=CITIES[VIEW], now=new Date(), t=today0(), mins=now.getHours()*60+now.getMinutes();
     var box=$('pyp'), st=$('pState'), sub=$('pSub'), nx=$('pNext');
@@ -503,7 +518,7 @@ body.night .ctrl button.play{color:#020a12}
     }
     box.className='card pyp '+cls; st.textContent=state; sub.textContent=detail; sub.className='psub';
     var d=addDays(t,1),k=0; while(k<40&&!restricted(c,d,PLATE)){d=addDays(d,1);k++;}
-    var nextTxt = k<40 ? 'Próximo: '+fLong(d)+'.' : '';
+    var nextTxt = k<40 ? 'Próximo para placa '+PLATE+': '+fLong(d)+'.' : '';
     var u=parseYmd(c.until);
     if(u && t>u){ nx.className='psub stale'; nx.textContent='Estas reglas vencieron el '+fShort(u)+'. Hay que actualizar el tablero.'; }
     else { nx.className='psub'; nx.textContent=nextTxt+(u&&daysBetween(t,u)<=10?' Las reglas actuales vencen el '+fShort(u)+'.':''); }
