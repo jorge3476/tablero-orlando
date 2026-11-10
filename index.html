@@ -11,6 +11,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Tablero Orlando</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 /* Layout: horizontal = 3 columnas (carro | navegación | música) + franja de gasolina.
@@ -22,6 +24,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
 html,body{height:100%}
 body{background:var(--bg);color:var(--text);font-family:var(--body);overflow:hidden;
   padding:max(12px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
@@ -57,6 +60,27 @@ header b{white-space:nowrap}
 .nav{grid-area:nv;gap:10px}
 .map{flex:1;min-height:60px;border-radius:12px;position:relative;overflow:hidden;background:#0e1319;border:1px solid var(--line)}
 .map canvas{width:100%;height:100%;display:block}
+#tmap{position:absolute;inset:0;background:#0e1319}
+#tmap .leaflet-control-attribution{background:rgba(11,13,16,.7);color:var(--muted);font-size:10px}
+#tmap .leaflet-control-attribution a{color:var(--muted)}
+.carpin{width:34px;height:34px;display:grid;place-items:center}
+.carpin i{display:block;width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:28px solid var(--accent);filter:drop-shadow(0 0 6px rgba(62,166,255,.8))}
+.destpin{width:18px;height:18px;border-radius:50%;background:var(--crit);border:3px solid #fff}
+.guide{position:absolute;z-index:500;left:10px;right:10px;top:10px;display:flex;gap:12px;align-items:center;background:rgba(12,16,20,.92);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.gman{font-size:40px;line-height:1;width:48px;text-align:center;color:var(--accent);font-weight:700}
+.gdist{font-family:var(--display);font-size:30px;font-weight:600;line-height:1}
+.gmsg{font-size:16px;color:var(--text);line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.mapbtns{position:absolute;z-index:500;right:10px;bottom:22px;display:flex;flex-direction:row;gap:8px}
+body.routing .dest,body.routing .favs{display:none}
+.mapbtns button{min-width:48px;min-height:48px;border-radius:12px;border:1px solid var(--line);background:rgba(20,24,29,.92);color:var(--text);font:600 14px var(--body);padding:0 8px}
+.mapbtns button[aria-pressed="false"]{color:var(--muted);text-decoration:line-through}
+.results{position:absolute;z-index:600;left:10px;right:10px;bottom:10px;max-height:70%;overflow:auto;background:rgba(12,16,20,.96);border:1px solid var(--line);border-radius:14px;padding:6px}
+.results button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);color:var(--text);font:600 16px var(--body);padding:12px 10px}
+.results button span{display:block;font-weight:400;font-size:13px;color:var(--muted);margin-top:2px}
+.results button:last-child{border-bottom:0}
+.tripbar{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15px;color:var(--muted)}
+.tripbar strong{font-family:var(--display);font-size:26px;color:var(--text);font-weight:600}
+#favAdd{min-width:52px;padding:0 12px}
 .map .note{position:absolute;left:12px;bottom:8px;right:12px;font-size:12px;color:var(--muted)}
 .dest{display:flex;gap:8px}
 .dest input{flex:1;min-height:48px;border-radius:12px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 14px;font-size:17px;-webkit-user-select:text;user-select:text;min-width:0}
@@ -138,7 +162,7 @@ dialog select{width:100%;min-height:48px;border-radius:10px;border:1px solid var
 /* modo manejo: menos distracción, botones más grandes */
 body.driving .dest,body.driving .favs,body.driving #refuelBtn,body.driving #setBtn{display:none}
 body.driving .ctrl button{width:92px;height:92px}
-body.driving .navbtns button{min-height:66px;font-size:18px}
+body.driving .gdist{font-size:36px}body.driving .gmsg{font-size:18px}
 /* modo noche: menos brillo */
 body.night{--bg:#050607;--panel:#0b0e11;--line:#1a1f25;--text:#b9c1c9;--muted:#6b7480;--accent:#2b7fc4;--good:#2aa27a;--warn:#c98c1a;--crit:#c94848}
 body.night .carbox img{filter:brightness(.7) drop-shadow(0 16px 12px rgba(0,0,0,.6))}
@@ -167,14 +191,16 @@ body.night .ctrl button.play{color:#020a12}
 
   <section class="card nav" aria-label="Navegación">
     <span class="label">Navegación</span>
-    <div class="map"><canvas id="map"></canvas><div class="note">Escribe el destino y elige la app: abre con la ruta lista.</div></div>
-    <div class="favs" id="favs"></div>
-    <div class="dest"><input id="destIn" type="text" placeholder="¿A dónde vamos?" autocomplete="off" aria-label="Destino"><button class="btn" id="favAdd">Guardar</button></div>
-    <div class="navbtns">
-      <button data-app="apple">Apple Maps</button>
-      <button data-app="google">Google Maps</button>
-      <button data-app="waze">Waze</button>
+    <div class="map">
+      <canvas id="map"></canvas><div id="tmap" hidden></div>
+      <div class="guide" id="guide" hidden><div class="gman" id="gMan">↑</div><div class="gtxt"><div class="gdist" id="gDist"></div><div class="gmsg" id="gMsg"></div></div></div>
+      <div class="mapbtns" id="mapBtns" hidden><button id="mCenter" aria-label="Centrar en mi posición">◎</button><button id="mTraffic" aria-pressed="true">Tráfico</button><button id="mVoice" aria-pressed="true" aria-label="Voz">🔊</button></div>
+      <div class="note" id="mapNote">Pon tu clave de TomTom en Ajustes para ver el mapa y navegar aquí.</div>
+      <div class="results" id="results" hidden></div>
     </div>
+    <div class="tripbar" id="tripBar" hidden><div><span class="label">Llegada</span> <strong id="tEta">--:--</strong> <span id="tSum"></span><div class="psub" id="tTraffic"></div></div><button class="btn sm" id="tEnd">Terminar</button></div>
+    <div class="favs" id="favs"></div>
+    <div class="dest"><input id="destIn" type="search" placeholder="¿A dónde vamos?" autocomplete="off" enterkeyhint="search" aria-label="Destino"><button class="btn solid" id="goBtn">Buscar</button><button class="btn" id="favAdd" aria-label="Guardar destino favorito">★</button></div>
   </section>
 
   <section class="card music" aria-label="Música">
@@ -243,6 +269,11 @@ body.night .ctrl button.play{color:#020a12}
   <label for="odoIn">Kilometraje actual</label>
   <input id="odoIn" type="number" inputmode="numeric" placeholder="125000">
   <div id="mantList"></div>
+
+  <h3>Navegación TomTom</h3>
+  <p>Crea una cuenta gratis en developer.tomtom.com, copia la clave (API key) de tu panel y pégala aquí. El plan gratuito alcanza de sobra para uso personal.</p>
+  <label for="ttKey">Clave de TomTom</label>
+  <input id="ttKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
 
   <h3>Spotify</h3>
   <p>Crea una app gratis en developer.spotify.com/dashboard (requiere cuenta Premium), copia su Client ID y registra esta dirección como Redirect URI:</p>
@@ -313,7 +344,7 @@ body.night .ctrl button.play{color:#020a12}
     if(S.demo){
       if(!navigator.geolocation){return;}
       try{ watch = navigator.geolocation.watchPosition(function(p){
-        S.demo=false; S.speed=Math.max(0,(p.coords.speed||0)*3.6); renderCar();
+        S.demo=false; S.speed=Math.max(0,(p.coords.speed||0)*3.6); S.lat=p.coords.latitude; S.lon=p.coords.longitude; S.acc=p.coords.accuracy; if(p.coords.heading!=null&&!isNaN(p.coords.heading)&&S.speed>3)S.heading=p.coords.heading; renderCar(); if(window.navOnFix)window.navOnFix();
       },function(){S.demo=true;$('gpsState').textContent='Sin permiso';},{enableHighAccuracy:true,maximumAge:1000}); }catch(e){}
     } else { if(watch!==null){navigator.geolocation.clearWatch(watch);} S.demo=true; renderCar(); }
   };
@@ -334,7 +365,7 @@ body.night .ctrl button.play{color:#020a12}
     var box=$('favs'); box.innerHTML='';
     favs.forEach(function(f,i){
       var d=document.createElement('div'); d.className='fav';
-      var b=document.createElement('button'); b.textContent=f; b.onclick=function(){$('destIn').value=f;};
+      var b=document.createElement('button'); b.textContent=f; b.onclick=function(){$('destIn').value=f; if(window.navSearch)window.navSearch();};
       var x=document.createElement('button'); x.className='x'; x.textContent='×'; x.setAttribute('aria-label','Quitar '+f);
       x.onclick=function(){favs.splice(i,1);lsSet('favs',JSON.stringify(favs));drawFavs();};
       d.appendChild(b); d.appendChild(x); box.appendChild(d);
@@ -344,20 +375,6 @@ body.night .ctrl button.play{color:#020a12}
     var v=$('destIn').value.trim(); if(!v||favs.indexOf(v)>-1||favs.length>=5){return;}
     favs.push(v); lsSet('favs',JSON.stringify(favs)); drawFavs();
   };
-  document.querySelectorAll('.navbtns button').forEach(function(b){
-    b.onclick=function(){
-      var q=encodeURIComponent($('destIn').value.trim()); if(!q){$('destIn').focus();return;}
-      var app=b.getAttribute('data-app'), appUrl, webUrl;
-      if(app==='google'){ appUrl='comgooglemaps://?daddr='+q+'&directionsmode=driving'; webUrl='https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+q; }
-      else if(app==='waze'){ appUrl='waze://?q='+q+'&navigate=yes'; webUrl='https://waze.com/ul?navigate=yes&q='+q; }
-      else { appUrl='maps://?daddr='+q+'&dirflg=d'; webUrl='https://maps.apple.com/?dirflg=d&daddr='+q; }
-      // Intenta abrir la app; si en 1,8 s seguimos aquí (app no instalada o rechazada), abre la web.
-      var left=false; var onHide=function(){left=true;};
-      document.addEventListener('visibilitychange',onHide,{once:true}); window.addEventListener('pagehide',onHide,{once:true}); window.addEventListener('blur',onHide,{once:true});
-      location.href=appUrl;
-      setTimeout(function(){ if(!left && document.visibilityState==='visible'){ window.open(webUrl,'_blank'); } },1800);
-    };
-  });
   drawFavs();
 
   /* ---------- Spotify (Web API, PKCE sin servidor) ---------- */
@@ -650,14 +667,14 @@ body.night .ctrl button.play{color:#020a12}
     if(o>=0 && (MANT.odo==null || Math.abs(o-MANT.odo)>=1)){ MANT.odo=o; MANT.items.forEach(function(it){if(it.last==null)it.last=o;}); }
     Array.prototype.forEach.call($('mantList').querySelectorAll('input'),function(i){
       var v=parseInt(i.value,10); var it=MANT.items.filter(function(x){return x.id===i.dataset.id;})[0]; if(v>0&&it)it.every=v;});
-    saveMant(); lsSet('sp_cid',$('cid').value.trim());
+    saveMant(); lsSet('sp_cid',$('cid').value.trim()); var tk2=$('ttKey').value.trim(); if(tk2!==(lsGet('tt_key')||'')){lsSet('tt_key',tk2); if(window.navInit)window.navInit();}
     renderCar(); renderPico(); applyNight(); renderAlertChip();
   }
   $('setBtn').onclick=function(){
     $('redir').textContent=REDIR; $('cid').value=lsGet('sp_cid')||''; $('tank').value=TANK; $('plate').value=PLATE;
     $('mainCity').value=MAIN; $('nightMode').value=lsGet('night')||'auto';
     $('soatD').value=DOCS.soat.vence; $('rtmD').value=DOCS.rtm.vence;
-    $('odoIn').value=MANT.odo==null?'':Math.round(MANT.odo); drawMant(); openDlg(sd);
+    $('odoIn').value=MANT.odo==null?'':Math.round(MANT.odo); $('ttKey').value=lsGet('tt_key')||''; drawMant(); openDlg(sd);
   };
   $('sClose').onclick=function(){sd.close();};
   $('sSave').onclick=function(){saveSettings();sd.close();showAlerts();};
@@ -704,6 +721,187 @@ body.night .ctrl button.play{color:#020a12}
   }
   window.addEventListener('resize',drawMap);
 
+
+
+  /* ======================================================
+     Navegación interna con TomTom (mapa, tráfico, ruta y voz)
+     Necesita la clave en Ajustes y conexión para buscar y calcular rutas.
+     ====================================================== */
+  var NAVC={home:[4.1420,-73.6266]};   // centro de Villavicencio si aún no hay GPS
+  var map=null, carMk=null, destMk=null, routeLn=null, trafficLy=null, follow=true, voiceOn=lsGet('tt_voice')!=='0';
+  var R=null;   // ruta activa: {pts,cum,ins,dest,summary,spoken:{},offCount,lastCalc}
+  function key(){return (lsGet('tt_key')||'').trim();}
+  function hav(a,b,c,d){var r=Math.PI/180,x=(d-b)*r*Math.cos((a+c)/2*r),y=(c-a)*r;return Math.sqrt(x*x+y*y)*6371000;}
+  function here(){return (S.lat!=null)?[S.lat,S.lon]:(map?[map.getCenter().lat,map.getCenter().lng]:NAVC.home);}
+  function fmtDist(m){return m>=1000?(m/1000).toFixed(m>=10000?0:1).replace('.',',')+' km':(Math.round(m/10)*10)+' m';}
+  function fmtMin(s){var m=Math.round(s/60);return m<60?m+' min':Math.floor(m/60)+' h '+pad(m%60)+' min';}
+  function note(t){var n=$('mapNote');n.textContent=t||'';n.hidden=!t;}
+
+  function navInit(){
+    var has=!!key() && typeof L!=='undefined';
+    $('tmap').hidden=!has; $('mapBtns').hidden=!has; $('map').style.visibility=has?'hidden':'visible';
+    if(!key()){note('Pon tu clave de TomTom en Ajustes para ver el mapa y navegar aquí.');return;}
+    if(typeof L==='undefined'){note('No se pudo cargar el mapa. Abre el tablero con internet una vez para guardarlo.');return;}
+    note('');
+    if(!map){
+      map=L.map('tmap',{zoomControl:false,attributionControl:true,center:here(),zoom:15});
+      map.attributionControl.setPrefix(false);
+      map.on('dragstart',function(){follow=false;});
+    } else { map.eachLayer(function(l){map.removeLayer(l);}); carMk=destMk=routeLn=null; }
+    var k=encodeURIComponent(key());
+    var base=L.tileLayer('https://api.tomtom.com/map/1/tile/basic/night/{z}/{x}/{y}.png?key='+k+'&language=es-ES',
+      {maxZoom:20,maxNativeZoom:20,tileSize:256,attribution:'© TomTom'}).addTo(map);
+    base.on('tileerror',function(){ if(navigator.onLine) note('TomTom no aceptó la clave o falló la conexión. Revisa la clave en Ajustes.'); });
+    base.on('tileload',function(){ if($('mapNote').textContent.indexOf('TomTom no aceptó')===0) note(''); });
+    trafficLy=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0-dark/{z}/{x}/{y}.png?key='+k,{maxZoom:20,opacity:.85,zIndex:5});
+    if(lsGet('tt_traffic')!=='0') trafficLy.addTo(map);
+    $('mTraffic').setAttribute('aria-pressed',lsGet('tt_traffic')!=='0');
+    if(R) drawRoute();
+    setTimeout(function(){map.invalidateSize();},200);
+    navOnFix();
+  }
+  window.navInit=navInit;
+
+  function carIcon(){return L.divIcon({className:'',html:'<div class="carpin" style="transform:rotate('+(S.heading||0)+'deg)"><i></i></div>',iconSize:[34,34],iconAnchor:[17,17]});}
+  function navOnFix(){
+    if(!map||S.lat==null) return;
+    var p=[S.lat,S.lon];
+    if(!carMk) carMk=L.marker(p,{icon:carIcon(),interactive:false,zIndexOffset:1000}).addTo(map);
+    else { carMk.setLatLng(p); carMk.setIcon(carIcon()); }
+    if(follow) map.setView(p, R?17:Math.max(map.getZoom(),15), {animate:true});
+    if(R) guide();
+  }
+  window.navOnFix=navOnFix;
+
+  /* ---- búsqueda de destino ---- */
+  function navSearch(){
+    var q=$('destIn').value.trim(); if(!q){$('destIn').focus();return;}
+    if(!key()){note('Primero pon tu clave de TomTom en Ajustes.');return;}
+    if(!navigator.onLine){note('Sin internet no se pueden buscar destinos.');return;}
+    var h=here(), box=$('results');
+    box.hidden=false; box.innerHTML='<button disabled>Buscando…</button>';
+    fetch('https://api.tomtom.com/search/2/search/'+encodeURIComponent(q)+'.json?key='+encodeURIComponent(key())+
+      '&countrySet=CO&language=es-ES&limit=6&lat='+h[0]+'&lon='+h[1])
+    .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(function(j){
+      box.innerHTML='';
+      var res=(j.results||[]);
+      if(!res.length){box.innerHTML='<button disabled>No encontré ese lugar. Prueba con otra dirección o nombre.</button>';}
+      res.forEach(function(x){
+        var b=document.createElement('button'), name=(x.poi&&x.poi.name)||x.address.freeformAddress;
+        b.textContent=name; var sp=document.createElement('span');
+        sp.textContent=(x.poi?x.address.freeformAddress+' · ':'')+(x.dist!=null?fmtDist(x.dist):''); b.appendChild(sp);
+        b.onclick=function(){box.hidden=true; startRoute({lat:x.position.lat,lon:x.position.lon,name:name});};
+        box.appendChild(b);
+      });
+      var c=document.createElement('button'); c.textContent='Cancelar'; c.style.color='var(--muted)'; c.onclick=function(){box.hidden=true;}; box.appendChild(c);
+    })
+    .catch(function(){box.innerHTML='';box.hidden=true;note('No se pudo buscar. Revisa la conexión o la clave de TomTom.');});
+  }
+  window.navSearch=navSearch;
+  $('goBtn').onclick=navSearch;
+  $('destIn').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('destIn').blur();navSearch();}});
+
+  /* ---- ruta ---- */
+  function startRoute(dest){
+    unlockVoice();
+    calcRoute(dest,function(ok){ if(ok){ follow=true; say('Ruta lista hacia '+dest.name+'. '+R.ins[0].message); } });
+  }
+  function calcRoute(dest,cb){
+    var h=here();
+    note('Calculando ruta…');
+    var url='https://api.tomtom.com/routing/1/calculateRoute/'+h[0]+','+h[1]+':'+dest.lat+','+dest.lon+'/json?key='+encodeURIComponent(key())+
+      '&traffic=true&travelMode=car&routeType=fastest&instructionsType=text&language=es-ES'+(S.heading!=null?'&vehicleHeading='+Math.round(S.heading):'');
+    fetch(url).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(function(j){
+      var rt=j.routes&&j.routes[0]; if(!rt) throw new Error('sin ruta');
+      var pts=[]; rt.legs.forEach(function(l){l.points.forEach(function(p){pts.push([p.latitude,p.longitude]);});});
+      var cum=[0]; for(var i=1;i<pts.length;i++) cum.push(cum[i-1]+hav(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]));
+      R={pts:pts,cum:cum,ins:(rt.guidance&&rt.guidance.instructions)||[],dest:dest,summary:rt.summary,spoken:{},offCount:0,lastCalc:Date.now(),idx:0};
+      note(''); drawRoute(); guide(); if(cb)cb(true);
+    })
+    .catch(function(){ note(navigator.onLine?'No se pudo calcular la ruta. Revisa la clave de TomTom.':'Sin señal: no puedo calcular la ruta ahora.'); if(cb)cb(false); });
+  }
+  function drawRoute(){
+    if(!map||!R) return;
+    if(routeLn) map.removeLayer(routeLn); if(destMk) map.removeLayer(destMk);
+    routeLn=L.polyline(R.pts,{color:'#3ea6ff',weight:7,opacity:.9}).addTo(map);
+    destMk=L.marker(R.pts[R.pts.length-1],{icon:L.divIcon({className:'',html:'<div class="destpin"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(map);
+    if(S.lat==null||!follow) map.fitBounds(routeLn.getBounds(),{padding:[40,40]});
+    $('tripBar').hidden=false; $('guide').hidden=false; document.body.classList.add('routing');
+  }
+  function endRoute(silent){
+    R=null; if(routeLn&&map)map.removeLayer(routeLn); if(destMk&&map)map.removeLayer(destMk); routeLn=destMk=null;
+    $('tripBar').hidden=true; $('guide').hidden=true; document.body.classList.remove('routing'); if(map)setTimeout(function(){map.invalidateSize();},100); if(!silent) say('Navegación terminada.');
+  }
+  $('tEnd').onclick=function(){endRoute();};
+
+  /* ---- seguimiento de la ruta e indicaciones ---- */
+  function nearest(lat,lon){
+    // punto más cercano de la ruta, buscando cerca del último índice para no saltar a otra parte
+    var best=1e12,bi=R.idx,from=Math.max(0,R.idx-30),to=Math.min(R.pts.length-1,R.idx+400);
+    if(R.offCount>2){from=0;to=R.pts.length-1;}
+    var kx=Math.cos(lat*Math.PI/180)*111320,ky=110540,bt=0;
+    for(var i=from;i<to;i++){
+      var ax=(R.pts[i][1]-lon)*kx,ay=(R.pts[i][0]-lat)*ky,bx=(R.pts[i+1][1]-lon)*kx,by=(R.pts[i+1][0]-lat)*ky;
+      var dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy,t=L2?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/L2)):0;
+      var px=ax+t*dx,py=ay+t*dy,d=px*px+py*py; if(d<best){best=d;bi=i;bt=t;}
+    }
+    return {dist:Math.sqrt(best),idx:bi,offset:R.cum[bi]+bt*(R.cum[bi+1]-R.cum[bi])};
+  }
+  var ARROW={TURN_LEFT:'↰',TURN_RIGHT:'↱',KEEP_LEFT:'↖',KEEP_RIGHT:'↗',BEAR_LEFT:'↖',BEAR_RIGHT:'↗',SHARP_LEFT:'↰',SHARP_RIGHT:'↱',
+    MAKE_UTURN:'↶',ROUNDABOUT_RIGHT:'⟳',ROUNDABOUT_LEFT:'⟲',ROUNDABOUT_CROSS:'⟳',ROUNDABOUT_BACK:'⟳',ARRIVE:'⚑',ARRIVE_LEFT:'⚑',ARRIVE_RIGHT:'⚑',
+    STRAIGHT:'↑',FOLLOW:'↑',DEPART:'↑',MOTORWAY_EXIT_LEFT:'↖',MOTORWAY_EXIT_RIGHT:'↗'};
+  function guide(){
+    if(!R) return;
+    var total=R.cum[R.cum.length-1], off=0, onRoute=true;
+    if(S.lat!=null){
+      var n=nearest(S.lat,S.lon); off=n.offset; R.idx=n.idx;
+      onRoute = n.dist < Math.max(45,(S.acc||0)*1.5);
+      R.offCount = onRoute?0:R.offCount+1;
+      // desvío: recalcula con tráfico, como máximo cada 20 s
+      if(R.offCount>=3 && Date.now()-R.lastCalc>20000 && navigator.onLine){ R.lastCalc=Date.now(); say('Recalculando.'); calcRoute(R.dest); return; }
+    }
+    var left=Math.max(0,total-off);
+    if(S.lat!=null && left<35){ say('Has llegado a tu destino.'); endRoute(true); return; }
+    var next=null; for(var i=0;i<R.ins.length;i++){ if(R.ins[i].routeOffsetInMeters>off+8){next=R.ins[i];break;} }
+    if(!next) next=R.ins[R.ins.length-1]||{message:'Sigue la ruta',maneuver:'STRAIGHT',routeOffsetInMeters:total};
+    var dn=Math.max(0,next.routeOffsetInMeters-off);
+    $('gMan').textContent=ARROW[next.maneuver]||'↑';
+    $('gDist').textContent=onRoute?fmtDist(dn):'Fuera de la ruta';
+    $('gMsg').textContent=next.message||'';
+    // voz: aviso previo y aviso al llegar al giro
+    var id=next.routeOffsetInMeters, sp=R.spoken[id]||0, kmh=S.speed||30, far=Math.max(250,kmh*12);
+    if(S.lat!=null && onRoute){
+      if(sp<1 && dn<=far && dn>far*0.55){ say('En '+fmtDist(dn).replace(' m',' metros').replace(' km',' kilómetros')+', '+next.message); R.spoken[id]=1; }
+      else if(sp<2 && dn<=Math.max(40,kmh*2.2)){ say(next.message); R.spoken[id]=2; }
+    }
+    // resumen: hora de llegada con el tiempo restante proporcional
+    var s=R.summary, frac=total?left/total:0, secs=s.travelTimeInSeconds*frac, eta=new Date(Date.now()+secs*1000);
+    $('tEta').textContent=eta.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    $('tSum').textContent=fmtDist(left)+' · '+fmtMin(secs);
+    $('tTraffic').textContent=s.trafficDelayInSeconds>60?'Incluye '+fmtMin(s.trafficDelayInSeconds)+' de demora por tráfico':'Tráfico fluido';
+  }
+  // cada 5 minutos vuelve a pedir la ruta para actualizar el tráfico
+  setInterval(function(){ if(R && navigator.onLine && Date.now()-R.lastCalc>300000){ R.lastCalc=Date.now(); calcRoute(R.dest); } },30000);
+
+  /* ---- voz en español ---- */
+  var voiceReady=false;
+  function unlockVoice(){ if(voiceReady||!('speechSynthesis' in window))return; try{var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);voiceReady=true;}catch(e){} }
+  function say(t){
+    if(!voiceOn||!t||!('speechSynthesis' in window)) return;
+    try{ var u=new SpeechSynthesisUtterance(t); u.lang='es-CO';
+      var v=speechSynthesis.getVoices().filter(function(x){return /^es/i.test(x.lang);});
+      var pick=v.filter(function(x){return /CO|MX|419|US/.test(x.lang);})[0]||v[0]; if(pick)u.voice=pick;
+      u.rate=1; speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){}
+  }
+  $('mVoice').onclick=function(){unlockVoice();voiceOn=!voiceOn;lsSet('tt_voice',voiceOn?'1':'0');this.setAttribute('aria-pressed',voiceOn);if(voiceOn)say('Voz activada.');};
+  $('mVoice').setAttribute('aria-pressed',voiceOn);
+  $('mCenter').onclick=function(){follow=true; if(S.lat!=null&&map)map.setView([S.lat,S.lon],R?17:16); else note('Activa el GPS con el botón de arriba ("Modo demo") para ver tu posición.');};
+  $('mTraffic').onclick=function(){ if(!map||!trafficLy)return; var on=!map.hasLayer(trafficLy); if(on)trafficLy.addTo(map); else map.removeLayer(trafficLy); lsSet('tt_traffic',on?'1':'0'); this.setAttribute('aria-pressed',on); };
+  window.addEventListener('resize',function(){ if(map) setTimeout(function(){map.invalidateSize();},150); });
+  window.addEventListener('online',function(){ if(key()&&!map) navInit(); });
+  navInit();
 
 
   /* Funciona sin internet una vez instalada */
