@@ -113,10 +113,14 @@ body.routing .dest,body.routing .favs{display:none}
 .srcsw button{border:0;background:none;color:var(--muted);font:700 13px var(--body);letter-spacing:.12em;text-transform:uppercase;padding:6px 16px;min-height:34px;border-radius:999px}
 .srcsw button[aria-selected="true"]{background:#232b34;color:var(--text)}
 .music.radio .bar,.music.radio #plists{display:none}
-.music.radio .art{max-height:17%}
+.music.radio .art{max-height:15%}
 .music.radio .title{-webkit-line-clamp:1;font-size:22px}
 .music.radio{gap:6px}
 .pl.add{justify-content:center;color:var(--accent);border-style:dashed;background:none}
+.music.radio #rlist{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-content:start;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px}
+.rchip{min-height:42px;padding:4px 10px;border-radius:10px;border:1px solid var(--line);background:#1a2027;color:var(--text);font:600 13px var(--body);text-align:left;line-height:1.15;overflow:hidden}
+.rchip.on{border-color:var(--accent);color:var(--accent);background:#14273a}
+.rchip.add{color:var(--accent);border-style:dashed;background:none;text-align:center}
 .pl .ph.txt{display:grid;place-items:center;font:700 13px var(--body);color:#cfe3ff}
 .rres{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:34vh;overflow:auto}
 .rrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:6px 8px;background:#0e1319}
@@ -585,12 +589,25 @@ body.night .ctrl button.play{color:#020a12}
      Radio por internet: favoritas (Big R Radio) y buscador con Radio Browser
      ====================================================== */
   var RADIO_DEFAULT=[
-    {id:'bigr-90salt',name:'Big R · 90s Alternative Rock',url:'https://bigrradio.cdnstream1.com/5187_128',img:'',tag:'90s alternativo'},
-    {id:'bigr-postgrunge',name:'Big R · Post Grunge Rock',url:'https://bigrradio.cdnstream1.com/5203_128',img:'',tag:'Post grunge'},
-    {id:'bigr-grunge',name:'Big R · Grunge FM',url:'https://bigrradio.cdnstream1.com/5200_128',img:'',tag:'Grunge'}
+    {id:'bigr-90salt',name:'90s Alternative Rock',q:'90s Alternative Rock',url:'https://bigrradio.cdnstream1.com/5187_128',tag:'Big R Radio'},
+    {id:'bigr-80sfm',name:'80s FM',q:'80s FM',tag:'Big R Radio'},
+    {id:'bigr-warm',name:'101.6 Adult Warm Hits',q:'Adult Warm Hits',url:'https://bigrradio.cdnstream1.com/5177_128',tag:'Big R Radio'},
+    {id:'bigr-energy98',name:'Energy 98',q:'Energy 98',tag:'Big R Radio'},
+    {id:'bigr-latjazz',name:'Latin Jazz',q:'Latin Jazz',tag:'Big R Radio'},
+    {id:'bigr-reggaeton',name:'Latin Reggaeton',q:'Latin Reggaeton',tag:'Big R Radio'},
+    {id:'bigr-lathiphop',name:'Latin Hip-Hop',q:'Latin Hip-Hop',tag:'Big R Radio'},
+    {id:'bigr-regmex',name:'Regional Mexican',q:'Regional Mexican',tag:'Big R Radio'},
+    {id:'bigr-salsa',name:'Latin Salsa',q:'Latin Salsa',tag:'Big R Radio'},
+    {id:'bigr-tropical',name:'Latin Tropical',q:'Latin Tropicalia',tag:'Big R Radio'}
   ];
-  var RFAV; try{RFAV=JSON.parse(lsGet('radio_favs')||'null');}catch(e){} if(!Array.isArray(RFAV)||!RFAV.length) RFAV=RADIO_DEFAULT.slice();
+  var RFAV; try{RFAV=JSON.parse(lsGet('radio_favs')||'null');}catch(e){}
+  if(!Array.isArray(RFAV)||!RFAV.length) RFAV=RADIO_DEFAULT.slice();
+  else if(lsGet('radio_v')!=='2'){   // nueva lista de Big R; se conservan las que agregaste con el buscador
+    RFAV=RADIO_DEFAULT.concat(RFAV.filter(function(x){return x.id.indexOf('bigr-')!==0;}));
+  }
+  lsSet('radio_v','2');
   function saveFav(){lsSet('radio_favs',JSON.stringify(RFAV));}
+  saveFav();
   var audio=new Audio(); audio.preload='none';
   var R_CUR=null, R_STATE='stop';   // stop | loading | play | error
   window.MUSIC_SRC=lsGet('musicSrc')==='radio'?'radio':'sp';
@@ -612,23 +629,18 @@ body.night .ctrl button.play{color:#020a12}
     $('playIcon').innerHTML = (R_STATE==='play'||R_STATE==='loading') ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
     setStatus(!navigator.onLine?'Sin señal: la radio necesita internet.': R_STATE==='error'?'Prueba otra emisora o revisa la conexión.':'');
     Array.prototype.forEach.call($('rlist').children,function(b){b.classList.toggle('on',!!R_CUR&&b.dataset.id===R_CUR.id);});
+    if(st&&!st.img){ var a2=$('art'); a2.dataset.ini=initials(st.name.replace(/^Big R\s*·\s*/,'')); }
   }
   function drawRlist(){
     var box=$('rlist'); box.innerHTML='';
     RFAV.forEach(function(st){
-      var b=document.createElement('button'); b.className='pl'; b.dataset.id=st.id; b.setAttribute('aria-label','Escuchar '+st.name);
-      b.appendChild(artEl(st)); var t=document.createElement('span'); t.textContent=st.name; b.appendChild(t);
-      b.onclick=function(){radioPlay(st);}; box.appendChild(b);
+      var b=document.createElement('button'); b.className='rchip'; b.dataset.id=st.id; b.setAttribute('aria-label','Escuchar '+st.name);
+      b.textContent=st.name.replace(/^Big R\s*·\s*/,''); b.onclick=function(){radioPlay(st);}; box.appendChild(b);
     });
-    var add=document.createElement('button'); add.className='pl add'; add.textContent='＋ Buscar emisoras'; add.onclick=openRadioSearch; box.appendChild(add);
-    setTimeout(fitRlist,30); renderRadio();
+    var add=document.createElement('button'); add.className='rchip add'; add.textContent='＋ Buscar'; add.onclick=openRadioSearch; box.appendChild(add);
+    renderRadio(); var on=box.querySelector('.on'); if(on&&on.scrollIntoView) try{on.scrollIntoView({block:'nearest'});}catch(e){}
   }
-  function fitRlist(){
-    var box=$('rlist'), kids=box.children; Array.prototype.forEach.call(kids,function(b){b.hidden=true;});
-    var n=Math.max(1,Math.floor((box.clientHeight+6)/52));
-    var favs=Math.max(0,Math.min(RFAV.length,n-1));
-    Array.prototype.forEach.call(kids,function(b,i){ b.hidden = (i<RFAV.length) ? i>=favs : false; });
-  }
+  function fitRlist(){}
   function setMediaSession(st){
     if(!('mediaSession' in navigator)) return;
     try{
@@ -639,10 +651,20 @@ body.night .ctrl button.play{color:#020a12}
       navigator.mediaSession.setActionHandler('previoustrack',function(){radioStep(-1);});
     }catch(e){}
   }
+  function resolveSt(st){
+    if(st.url) return Promise.resolve(st);
+    return rbFetch('/json/stations/search?name='+encodeURIComponent(st.q||st.name)+'&hidebroken=true&order=clickcount&reverse=true&limit=15')
+      .then(function(a){
+        var x=a.filter(function(y){return /big\s*-?\s*r/i.test(y.name);})[0];
+        if(!x) throw new Error('no encontrada');
+        st.url=(x.url_resolved||x.url).replace(/^http:\/\//,'https://'); st.uuid=x.stationuuid; saveFav(); return st;
+      });
+  }
   function radioPlay(st){
     if(!st) return;
     if(window.spPauseIfPlaying) window.spPauseIfPlaying();
     R_CUR=st; R_STATE='loading'; renderRadio();
+    if(!st.url){ resolveSt(st).then(function(){ if(R_CUR===st) radioPlay(st); }).catch(function(){ if(R_CUR===st){R_STATE='error';renderRadio();} }); return; }
     audio.src=st.url;
     var p=audio.play(); if(p&&p.catch) p.catch(function(){ R_STATE='error'; renderRadio(); });
     setMediaSession(st);
@@ -723,6 +745,7 @@ body.night .ctrl button.play{color:#020a12}
   if(window.ResizeObserver){ try{ new ResizeObserver(function(){ if(window.MUSIC_SRC==='radio') fitRlist(); }).observe($('rlist')); }catch(e){} }
   window.addEventListener('online',renderRadio); window.addEventListener('offline',renderRadio);
   setTimeout(function(){ setSource(window.MUSIC_SRC); },0);
+  setTimeout(function(){ if(!navigator.onLine) return; RFAV.filter(function(x){return !x.url;}).reduce(function(p,st){ return p.then(function(){ return resolveSt(st).catch(function(){}); }); },Promise.resolve()); },4000);
 
   window.addEventListener('resize',function(){setTimeout(fitPl,120);});
   if(window.ResizeObserver){ try{ new ResizeObserver(function(){fitPl();}).observe($('plists')); }catch(e){} }
@@ -1195,7 +1218,7 @@ body.night .ctrl button.play{color:#020a12}
   /* ======================================================
      Respaldo y restauración de datos
      ====================================================== */
-  var BK_KEYS=['radio_favs','musicSrc','clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
+  var BK_KEYS=['radio_v','radio_favs','musicSrc','clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
   function bkMake(){var o={app:'tablero-orlando',v:1,fecha:new Date().toISOString(),datos:{}};BK_KEYS.forEach(function(k){var v=lsGet(k);if(v!==null)o.datos[k]=v;});return JSON.stringify(o);}
   function bkMsg(t){$('bkMsg').textContent=t;}
   function bkApply(txt){
