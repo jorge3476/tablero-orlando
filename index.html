@@ -47,6 +47,11 @@ header b{white-space:nowrap}
 .dot.ok{background:var(--good)}.dot.bad{background:var(--crit)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;min-height:0;display:flex;flex-direction:column}
 .label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ctitle{display:block;text-align:center;font-size:13px;font-weight:700;color:#b6bfc9;letter-spacing:.16em}
+body.night .ctitle{color:var(--muted)}
+#clock{font-family:var(--display);font-size:24px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+#date{font-size:15px;color:var(--muted);white-space:nowrap}
+@media (orientation:portrait){#date{display:none}}
 .speedcard{grid-area:sp;align-items:center;justify-content:space-between;background:radial-gradient(120% 80% at 50% 100%,#162433 0%,var(--panel) 60%)}
 .speed{font-family:var(--display);font-weight:600;font-size:clamp(84px,16vh,150px);line-height:.9;font-variant-numeric:tabular-nums;text-align:center}
 .unit{font-family:var(--display);font-size:22px;color:var(--muted);letter-spacing:.12em;text-align:center}
@@ -189,12 +194,12 @@ body.night .ctrl button.play{color:#020a12}
 <div class="app">
   <header>
     <b>CHEVROLET ORLANDO · 2013</b>
-    <span class="hr"><span id="net"><i class="dot ok" id="netDot"></i><span id="netTxt">En línea</span></span><span id="clock">--:--</span></span>
+    <span class="hr"><span id="net"><i class="dot ok" id="netDot"></i><span id="netTxt">En línea</span></span><span id="clock">--:--</span><span id="date"></span></span>
     <span class="hr"><button class="chip alert" id="alertBtn" hidden>Avisos</button><button class="chip" id="modeBtn" aria-pressed="true">Modo demo</button><button class="chip" id="setBtn" aria-label="Ajustes">Ajustes</button></span>
   </header>
 
   <section class="card speedcard" aria-label="Velocidad">
-    <span class="label">Velocidad</span>
+    <span class="label ctitle">Velocidad</span>
     <div><div class="speed" id="speed">0</div><div class="unit">KM/H</div></div>
     <div class="carbox" id="carbox">
       <img id="carImg" alt="Chevrolet Orlando" src="cars/orlando-principal.webp" draggable="false">
@@ -203,7 +208,7 @@ body.night .ctrl button.play{color:#020a12}
   </section>
 
   <section class="card nav" aria-label="Navegación">
-    <span class="label">Navegación</span>
+    <span class="label ctitle">Navegación</span>
     <div class="map">
       <canvas id="map"></canvas><div id="tmap" hidden></div>
       <div class="guide" id="guide" hidden><div class="gman" id="gMan">↑</div><div class="gtxt"><div class="gdist" id="gDist"></div><div class="gmsg" id="gMsg"></div></div></div>
@@ -217,7 +222,7 @@ body.night .ctrl button.play{color:#020a12}
   </section>
 
   <section class="card music" aria-label="Música">
-    <span class="label">Spotify</span>
+    <span class="label ctitle">Spotify</span>
     <div class="art" id="art"><svg viewBox="0 0 24 24" fill="#8fc7ff"><path d="M9 3v11.6A3.5 3.5 0 1 0 11 18V8h7V3z"/></svg></div>
     <div><div class="title" id="trackTitle">Sin conectar</div><div class="artist" id="trackArtist">Abre Ajustes para enlazar Spotify</div></div>
     <div class="bar"><i id="prog"></i></div>
@@ -272,6 +277,8 @@ body.night .ctrl button.play{color:#020a12}
   </div>
   <label for="mainCity">Ciudad principal para pico y placa</label>
   <select id="mainCity"></select>
+  <label for="clock24">Formato de hora</label>
+  <select id="clock24"><option value="0">12 horas (1:20 p. m.)</option><option value="1">24 horas (13:20)</option></select>
   <label for="nightMode">Modo noche</label>
   <select id="nightMode"><option value="auto">Automático (6:00 p. m. a 6:00 a. m.)</option><option value="on">Siempre</option><option value="off">Nunca</option></select>
 
@@ -358,7 +365,10 @@ body.night .ctrl button.play{color:#020a12}
 
   var target = 40, tick = 0;
   setInterval(function(){
-    $('clock').textContent = new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    var nw=new Date(), h24=lsGet('clock24')==='1', hh=nw.getHours(), mm=('0'+nw.getMinutes()).slice(-2);
+    $('clock').textContent = h24 ? ('0'+hh).slice(-2)+':'+mm : ((hh%12)||12)+':'+mm+(hh<12?' a. m.':' p. m.');
+    var MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    $('date').textContent = nw.getDate()+' '+MES[nw.getMonth()]+' '+nw.getFullYear();
     if (S.demo){
       if (Math.random()<.12) target = [0,25,45,60,80][Math.floor(Math.random()*5)];
       S.speed += (target-S.speed)*.25;
@@ -762,7 +772,7 @@ body.night .ctrl button.play{color:#020a12}
     var t=parseFloat($('tank').value); if(t>0){TANK=t;lsSet('tank',t);}
     var p=parseInt($('plate').value,10); if(p>=0&&p<=9){PLATE=p;lsSet('plate',p);}
     MAIN=$('mainCity').value; lsSet('mainCity',MAIN); VIEW=MAIN;
-    lsSet('night',$('nightMode').value);
+    lsSet('night',$('nightMode').value); lsSet('clock24',$('clock24').value);
     ['soat','rtm'].forEach(function(k){var v=$(k+'D').value; if(v!==DOCS[k].vence){DOCS[k].vence=v;DOCS[k].snooze='';delete SESS[k];}});
     saveDocs();
     var o=parseFloat($('odoIn').value);
@@ -774,7 +784,7 @@ body.night .ctrl button.play{color:#020a12}
   }
   $('setBtn').onclick=function(){
     $('redir').textContent=REDIR; $('cid').value=lsGet('sp_cid')||''; $('tank').value=TANK; $('plate').value=PLATE;
-    $('mainCity').value=MAIN; $('nightMode').value=lsGet('night')||'auto';
+    $('mainCity').value=MAIN; $('nightMode').value=lsGet('night')||'auto'; $('clock24').value=lsGet('clock24')==='1'?'1':'0';
     $('soatD').value=DOCS.soat.vence; $('rtmD').value=DOCS.rtm.vence;
     $('odoIn').value=MANT.odo==null?'':Math.round(MANT.odo); $('ttKey').value=lsGet('tt_key')||''; drawMant(); openDlg(sd);
   };
@@ -1009,7 +1019,7 @@ body.night .ctrl button.play{color:#020a12}
   /* ======================================================
      Respaldo y restauración de datos
      ====================================================== */
-  var BK_KEYS=['tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
+  var BK_KEYS=['clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
   function bkMake(){var o={app:'tablero-orlando',v:1,fecha:new Date().toISOString(),datos:{}};BK_KEYS.forEach(function(k){var v=lsGet(k);if(v!==null)o.datos[k]=v;});return JSON.stringify(o);}
   function bkMsg(t){$('bkMsg').textContent=t;}
   function bkApply(txt){
