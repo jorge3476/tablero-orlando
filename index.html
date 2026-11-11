@@ -594,10 +594,31 @@ body.night .ctrl button.play{color:#020a12}
   function h12(m){var h=Math.floor(m/60),mi=m%60,ap=h<12?'a. m.':'p. m.';h=h%12||12;return h+':'+pad(mi)+' '+ap;}
   function hoursTxt(c){return c.hours.map(function(r){return h12(r[0])+' a '+h12(r[1]);}).join(' y ');}
 
-  function setPP(hidden){document.querySelector('.app').classList.toggle('nopp',hidden);lsSet('ppHidden',hidden?'1':'');}
-  $('ppHide').onclick=function(){setPP(true);};
-  $('ppShow').onclick=function(){setPP(false);};
-  setPP(lsGet('ppHidden')==='1');
+  /* Ocultar/mostrar pico y placa con deslizamiento hacia la izquierda */
+  function applyPP(hidden){document.querySelector('.app').classList.toggle('nopp',hidden);lsSet('ppHidden',hidden?'1':'');
+    setTimeout(function(){window.dispatchEvent(new Event('resize'));},30);}
+  var ppBusy=false, EASE='cubic-bezier(.2,.8,.2,1)';
+  function slideFrom(el,before,ms){
+    if(!el.animate) return; var a=el.getBoundingClientRect(), dx=before.left-a.left, dy=before.top-a.top;
+    if(Math.abs(dx)>1||Math.abs(dy)>1) el.animate([{transform:'translate('+dx+'px,'+dy+'px)'},{transform:'none'}],{duration:ms,easing:EASE});
+  }
+  function setPP(hidden,animate){
+    var pp=$('pyp'), fuel=document.querySelector('.fuel');
+    var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(!animate||reduce||!pp.animate||ppBusy){applyPP(hidden);return;}
+    ppBusy=true;
+    if(hidden){
+      var an=pp.animate([{transform:'none',opacity:1},{transform:'translateX(-110%)',opacity:0}],{duration:240,easing:'ease-in',fill:'forwards'});
+      an.onfinish=function(){ var b=fuel.getBoundingClientRect(); applyPP(true); an.cancel(); slideFrom(fuel,b,340); ppBusy=false; };
+    } else {
+      var b=fuel.getBoundingClientRect(); applyPP(false); slideFrom(fuel,b,340);
+      var an2=pp.animate([{transform:'translateX(-110%)',opacity:0},{transform:'none',opacity:1}],{duration:340,easing:EASE});
+      an2.onfinish=function(){ppBusy=false;};
+    }
+  }
+  $('ppHide').onclick=function(){setPP(true,true);};
+  $('ppShow').onclick=function(){setPP(false,true);};
+  setPP(lsGet('ppHidden')==='1',false);
   function renderPico(){
     var c=CITIES[VIEW], now=new Date(), t=today0(), mins=now.getHours()*60+now.getMinutes();
     var box=$('pyp'), st=$('pState'), sub=$('pSub'), nx=$('pNext');
