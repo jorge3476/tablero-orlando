@@ -53,6 +53,34 @@ header b{white-space:nowrap}
 .carbox{width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:4px 0}
 .carbox img{max-width:100%;max-height:100%;object-fit:contain;transition:opacity .18s;filter:drop-shadow(0 16px 12px rgba(0,0,0,.6)) drop-shadow(0 0 24px rgba(62,166,255,.14))}
 .carbox img.fade{opacity:0}
+.carbox{position:relative;cursor:pointer}
+.topcar{display:none;height:100%;width:auto;max-width:100%;overflow:visible}
+.carbox.v2d img{display:none}.carbox.v2d .topcar{display:block}
+.viewbtn{position:absolute;right:0;bottom:0;border:1px solid var(--line);background:rgba(20,24,29,.85);color:var(--muted);border-radius:999px;font:600 12px var(--body);padding:6px 10px;min-height:32px}
+.tcmsg{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;min-height:0;margin-bottom:6px}.tcmsg:empty{display:none}
+.tcmsg span{font-size:11px;white-space:nowrap;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(255,92,92,.18);color:var(--crit);border:1px solid rgba(255,92,92,.5)}
+.tcmsg span.demo{background:rgba(62,166,255,.15);color:var(--accent);border-color:rgba(62,166,255,.45)}
+.tcmsg span.info{background:rgba(255,176,32,.15);color:var(--warn);border-color:rgba(255,176,32,.45)}
+.tc-beam,.tc-glow,.tc-hatchopen{opacity:0;transition:opacity .45s}
+.topcar.low .tc-low,.topcar.high .tc-high,.topcar.park .tc-tail,.topcar.brake .tc-brake,.topcar.doorhatch .tc-hatchopen{opacity:1}
+.topcar.turnL .tc-turnL,.topcar.turnR .tc-turnR{animation:tcBlink .8s steps(1) infinite}
+@keyframes tcBlink{0%{opacity:1}50%{opacity:0}}
+.tc-head{fill:#cfd9e3;stroke:#5c6875;stroke-width:1;transition:fill .3s}
+.topcar.low .tc-head,.topcar.high .tc-head{fill:#fff}
+.tc-tl{fill:#6d1a1a;stroke:#3b0b0b;stroke-width:1;transition:fill .3s}
+.topcar.park .tc-tl,.topcar.brake .tc-tl{fill:#ff3b3b}
+.tc-door{transform-box:fill-box;transform-origin:0 0;transition:transform .55s cubic-bezier(.2,.8,.2,1)}
+.tc-door[data-door="fr"],.tc-door[data-door="rr"]{transform-origin:100% 0}
+.tc-door path{transition:fill .3s}
+.tc-door.open[data-door="fl"],.tc-door.open[data-door="rl"]{transform:rotate(38deg)}
+.tc-door.open[data-door="fr"],.tc-door.open[data-door="rr"]{transform:rotate(-38deg)}
+.tc-door.open path{fill:#ff6b6b}
+.tc-part{transition:fill .3s,stroke .3s}
+.tc-part.open{fill:rgba(255,92,92,.35);stroke:#ff5c5c;stroke-width:2}
+.tc-win{transition:fill .3s}
+.tc-win.open{fill:#3ea6ff;fill-opacity:.45}
+body.night .topcar{filter:brightness(.82)}
+@media (prefers-reduced-motion:reduce){.tc-door{transition:none}.topcar.turnL .tc-turnL,.topcar.turnR .tc-turnR{animation:none;opacity:1}}
 .dots{display:flex;gap:7px;margin-bottom:8px}.dots i{width:7px;height:7px;border-radius:50%;background:#2c3641}.dots i.on{background:var(--accent)}
 .trip{display:flex;gap:26px;font-variant-numeric:tabular-nums}
 .trip div{text-align:center}.trip strong{display:block;font-family:var(--display);font-size:26px;font-weight:600}
@@ -198,7 +226,61 @@ body.night .ctrl button.play{color:#020a12}
     <div><div class="speed" id="speed">0</div><div class="unit">KM/H</div></div>
     <div class="carbox" id="carbox">
       <img id="carImg" alt="Chevrolet Orlando" src="cars/orlando-principal.webp" draggable="false">
+      <svg class="topcar" id="topCar" viewBox="-62 -118 308 648" role="img" aria-label="Vista del carro desde arriba">
+        <defs>
+          <linearGradient id="tcBody" x1="0" x2="1"><stop offset="0" stop-color="#7d8894"/><stop offset=".22" stop-color="#c9d0d7"/><stop offset=".5" stop-color="#e3e7eb"/><stop offset=".78" stop-color="#c9d0d7"/><stop offset="1" stop-color="#7d8894"/></linearGradient>
+          <linearGradient id="tcRoof" x1="0" x2="1"><stop offset="0" stop-color="#a7b0ba"/><stop offset=".5" stop-color="#d4d9de"/><stop offset="1" stop-color="#a7b0ba"/></linearGradient>
+          <linearGradient id="tcGlass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2633"/><stop offset="1" stop-color="#0b1118"/></linearGradient>
+          <linearGradient id="tcBeam" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#eaf4ff" stop-opacity=".55"/><stop offset="1" stop-color="#eaf4ff" stop-opacity="0"/></linearGradient>
+          <radialGradient id="tcRed"><stop offset="0" stop-color="#ff3b3b" stop-opacity=".75"/><stop offset="1" stop-color="#ff3b3b" stop-opacity="0"/></radialGradient>
+          <radialGradient id="tcAmber"><stop offset="0" stop-color="#ffb020" stop-opacity=".9"/><stop offset="1" stop-color="#ffb020" stop-opacity="0"/></radialGradient>
+        </defs>
+        <!-- haces de luz -->
+        <g class="tc-beam tc-low"><path d="M30,20 L-35,-80 Q30,-104 82,-84 Z" fill="url(#tcBeam)"/><path d="M154,20 L219,-80 Q154,-104 102,-84 Z" fill="url(#tcBeam)"/></g>
+        <g class="tc-beam tc-high"><path d="M30,20 L-50,-145 Q45,-160 92,-140 Z" fill="url(#tcBeam)"/><path d="M154,20 L234,-145 Q139,-160 92,-140 Z" fill="url(#tcBeam)"/></g>
+        <!-- resplandor de pilotos y direccionales -->
+        <g class="tc-glow tc-tail"><ellipse cx="8" cy="425" rx="34" ry="44" fill="url(#tcRed)"/><ellipse cx="176" cy="425" rx="34" ry="44" fill="url(#tcRed)"/></g>
+        <g class="tc-glow tc-brake"><ellipse cx="8" cy="440" rx="50" ry="60" fill="url(#tcRed)"/><ellipse cx="176" cy="440" rx="50" ry="60" fill="url(#tcRed)"/><ellipse cx="92" cy="470" rx="70" ry="22" fill="url(#tcRed)"/></g>
+        <g class="tc-glow tc-turnL"><ellipse cx="10" cy="30" rx="30" ry="30" fill="url(#tcAmber)"/><ellipse cx="6" cy="430" rx="30" ry="34" fill="url(#tcAmber)"/></g>
+        <g class="tc-glow tc-turnR"><ellipse cx="174" cy="30" rx="30" ry="30" fill="url(#tcAmber)"/><ellipse cx="178" cy="430" rx="30" ry="34" fill="url(#tcAmber)"/></g>
+        <!-- compuerta abierta (proyección detrás del carro) -->
+        <path class="tc-hatchopen" d="M14,452 L170,452 L164,520 Q92,530 20,520 Z" fill="#ff5c5c" fill-opacity=".28" stroke="#ff5c5c" stroke-width="2"/>
+        <!-- ruedas -->
+        <g fill="#0a0c0f"><rect x="-4" y="72" width="12" height="58" rx="5"/><rect x="176" y="72" width="12" height="58" rx="5"/><rect x="-4" y="342" width="12" height="58" rx="5"/><rect x="176" y="342" width="12" height="58" rx="5"/></g>
+        <!-- carrocería -->
+        <path d="M30,14 C60,2 124,2 154,14 C172,22 180,40 181,70 L183,400 C183,438 176,452 160,458 C120,466 64,466 24,458 C8,452 1,438 1,400 L3,70 C4,40 12,22 30,14 Z" fill="url(#tcBody)" stroke="#5c6875" stroke-width="2"/>
+        <!-- capó -->
+        <path class="tc-part" data-part="hood" d="M24,24 C56,10 128,10 160,24 C168,42 170,70 168,108 C124,100 60,100 16,108 C14,70 16,42 24,24 Z" fill="none" stroke="#8a95a1" stroke-width="1.2"/>
+        <line x1="92" y1="16" x2="92" y2="102" stroke="#9aa5b0" stroke-width="1"/>
+        <!-- parabrisas -->
+        <path d="M22,122 C60,104 124,104 162,122 L150,182 C112,173 72,173 34,182 Z" fill="url(#tcGlass)" stroke="#3c4752" stroke-width="1.5"/>
+        <!-- techo y barras -->
+        <rect x="34" y="182" width="116" height="212" rx="10" fill="url(#tcRoof)" stroke="#8a95a1" stroke-width="1"/>
+        <g stroke="#2a3138" stroke-width="4" stroke-linecap="round"><line x1="44" y1="194" x2="44" y2="384"/><line x1="140" y1="194" x2="140" y2="384"/></g>
+        <g fill="#2a3138"><rect x="39" y="190" width="10" height="10" rx="2"/><rect x="135" y="190" width="10" height="10" rx="2"/><rect x="39" y="378" width="10" height="10" rx="2"/><rect x="135" y="378" width="10" height="10" rx="2"/></g>
+        <!-- vidrio trasero / compuerta -->
+        <path class="tc-part" data-part="hatch" d="M30,396 C70,402 114,402 154,396 L158,450 C114,458 70,458 26,450 Z" fill="none" stroke="#8a95a1" stroke-width="1.2"/>
+        <path d="M38,398 C72,404 112,404 146,398 L150,430 C112,437 72,437 34,430 Z" fill="url(#tcGlass)" stroke="#3c4752" stroke-width="1.5"/>
+        <!-- vidrios laterales (no giran con la puerta) -->
+        <g fill="url(#tcGlass)" stroke="#3c4752" stroke-width="1">
+          <path class="tc-win" data-win="fl" d="M22,184 L34,186 L34,264 L22,264 Z"/><path class="tc-win" data-win="rl" d="M22,270 L34,270 L34,342 L22,342 Z"/><path d="M22,348 L34,348 L34,388 L24,384 Z"/>
+          <path class="tc-win" data-win="fr" d="M162,184 L150,186 L150,264 L162,264 Z"/><path class="tc-win" data-win="rr" d="M162,270 L150,270 L150,342 L162,342 Z"/><path d="M162,348 L150,348 L150,388 L160,384 Z"/>
+        </g>
+        <!-- puertas: giran sobre la bisagra delantera -->
+        <g class="tc-door" data-door="fl"><path d="M3,150 L21,152 L21,266 L3,266 Z" fill="url(#tcBody)" stroke="#5c6875" stroke-width="1.5"/><rect x="8" y="232" width="9" height="3" rx="1.5" fill="#56616d"/></g>
+        <g class="tc-door" data-door="rl"><path d="M3,270 L21,270 L21,344 L4,344 Z" fill="url(#tcBody)" stroke="#5c6875" stroke-width="1.5"/><rect x="8" y="318" width="9" height="3" rx="1.5" fill="#56616d"/></g>
+        <g class="tc-door" data-door="fr"><path d="M181,150 L163,152 L163,266 L181,266 Z" fill="url(#tcBody)" stroke="#5c6875" stroke-width="1.5"/><rect x="167" y="232" width="9" height="3" rx="1.5" fill="#56616d"/></g>
+        <g class="tc-door" data-door="rr"><path d="M181,270 L163,270 L163,344 L180,344 Z" fill="url(#tcBody)" stroke="#5c6875" stroke-width="1.5"/><rect x="167" y="318" width="9" height="3" rx="1.5" fill="#56616d"/></g>
+        <g fill="#c9d0d7" stroke="#5c6875"><ellipse cx="-6" cy="158" rx="9" ry="6"/><ellipse cx="190" cy="158" rx="9" ry="6"/></g>
+        <!-- faros y pilotos -->
+        <path class="tc-head" d="M12,36 C20,22 38,14 56,14 L52,28 C38,30 26,36 16,46 Z"/>
+        <path class="tc-head" d="M172,36 C164,22 146,14 128,14 L132,28 C146,30 158,36 168,46 Z"/>
+        <path class="tc-tl" d="M2,398 L11,396 L13,446 L4,448 C2,432 1,414 2,398 Z"/>
+        <path class="tc-tl" d="M182,398 L173,396 L171,446 L180,448 C182,432 183,414 182,398 Z"/>
+      </svg>
+      <button class="viewbtn" id="viewBtn" aria-label="Cambiar entre foto y vista desde arriba">Vista 2D</button>
     </div>
+    <div class="tcmsg" id="tcMsg" aria-live="polite"></div>
     <div class="trip"><div><strong id="tripKm">0.0</strong><span class="label">Viaje km</span></div><div><strong id="gpsState">Demo</strong><span class="label">Fuente</span></div></div>
   </section>
 
@@ -1005,9 +1087,45 @@ body.night .ctrl button.play{color:#020a12}
 
 
   /* ======================================================
+     Vista 2D desde arriba: puertas, luces y ventanas
+     Los datos llegarán del escáner con window.setCarState({...}).
+     ====================================================== */
+  var CAR={doors:{},lights:{},windows:{}}, carDemo=null, demoOn=false;
+  var PARTNAME={fl:'Puerta del conductor',fr:'Puerta del copiloto',rl:'Puerta trasera izquierda',rr:'Puerta trasera derecha',hatch:'Compuerta abierta',hood:'Capó abierto'};
+  var WINNAME={fl:'Ventana conductor abajo',fr:'Ventana copiloto abajo',rl:'Ventana trasera izq. abajo',rr:'Ventana trasera der. abajo'};
+  function renderTop(){
+    var svg=$('topCar'); if(!svg) return;
+    ['low','high','park','brake','turnL','turnR'].forEach(function(k){svg.classList.toggle(k,!!CAR.lights[k]);});
+    svg.classList.toggle('doorhatch',!!CAR.doors.hatch);
+    Array.prototype.forEach.call(svg.querySelectorAll('.tc-door'),function(g){g.classList.toggle('open',!!CAR.doors[g.dataset.door]);});
+    Array.prototype.forEach.call(svg.querySelectorAll('.tc-part'),function(p){p.classList.toggle('open',!!CAR.doors[p.dataset.part]);});
+    Array.prototype.forEach.call(svg.querySelectorAll('.tc-win'),function(w){w.classList.toggle('open',!!CAR.windows[w.dataset.win]);});
+    var box=$('tcMsg'); box.innerHTML='';
+    function chip(t,c){var e=document.createElement('span');e.textContent=t;if(c)e.className=c;box.appendChild(e);}
+    var L=[]; Object.keys(PARTNAME).forEach(function(k){ if(CAR.doors[k]) L.push([PARTNAME[k]+(k.length===2?' abierta':''),'']); });
+    Object.keys(WINNAME).forEach(function(k){ if(CAR.windows[k]) L.push([WINNAME[k],'info']); });
+    if(demoOn) chip('Demostración','demo');
+    L.slice(0,demoOn?1:2).forEach(function(x){chip(x[0],x[1]);});
+    var more=L.length-(demoOn?1:2); if(more>0) chip('+'+more+' más','info');
+  }
+  window.setCarState=function(p){ ['doors','lights','windows'].forEach(function(k){ if(p&&p[k]) Object.keys(p[k]).forEach(function(x){CAR[k][x]=!!p[k][x];}); }); renderTop(); };
+  var DEMO=[{lights:{park:1,low:1}},{doors:{fl:1}},{doors:{fl:0},windows:{fr:1}},{windows:{fr:0},lights:{turnL:1}},{lights:{turnL:0,high:1}},
+            {lights:{high:0},doors:{hatch:1}},{doors:{hatch:0,rr:1}},{doors:{rr:0},lights:{brake:1}},{lights:{brake:0,low:0,park:0}},{}];
+  function stopDemo(){ if(carDemo){clearInterval(carDemo);carDemo=null;} if(demoOn){demoOn=false;CAR={doors:{},lights:{},windows:{}};renderTop();} }
+  function startDemo(){ stopDemo(); demoOn=true; var i=0; window.setCarState(DEMO[0]); carDemo=setInterval(function(){ if(!S.demo||!$('carbox').classList.contains('v2d')){stopDemo();return;} i=(i+1)%DEMO.length; window.setCarState(DEMO[i]); },1700); }
+  function setView(v2d){
+    var cb=$('carbox'); cb.classList.toggle('v2d',v2d); lsSet('carView',v2d?'2d':'foto');
+    $('viewBtn').textContent=v2d?'Foto':'Vista 2D';
+    if(v2d && S.demo) startDemo(); else stopDemo();
+    renderTop();
+  }
+  $('carbox').onclick=function(){ setView(!$('carbox').classList.contains('v2d')); };
+  setView(lsGet('carView')==='2d');
+
+  /* ======================================================
      Respaldo y restauración de datos
      ====================================================== */
-  var BK_KEYS=['tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
+  var BK_KEYS=['carView','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
   function bkMake(){var o={app:'tablero-orlando',v:1,fecha:new Date().toISOString(),datos:{}};BK_KEYS.forEach(function(k){var v=lsGet(k);if(v!==null)o.datos[k]=v;});return JSON.stringify(o);}
   function bkMsg(t){$('bkMsg').textContent=t;}
   function bkApply(txt){
