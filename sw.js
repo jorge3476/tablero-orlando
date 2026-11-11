@@ -1,5 +1,5 @@
 // Guarda el tablero en el iPad para que abra sin internet. Spotify siempre va por red.
-var CACHE = 'orlando-v17';
+var CACHE = 'orlando-v18';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png',
   './cars/orlando-principal.webp'];
 
@@ -19,7 +19,7 @@ self.addEventListener('activate', function (e) {
 
 self.addEventListener('fetch', function (e) {
   var req = e.request, url = new URL(req.url);
-  if (req.method !== 'GET' || url.hostname.indexOf('spotify.com') > -1 || url.hostname.indexOf('tomtom.com') > -1 || url.hostname.indexOf('scdn.co') > -1) { return; }
+  if (req.method !== 'GET' || url.hostname.indexOf('spotify.com') > -1 || req.destination === 'audio' || req.headers.has('range') || url.hostname.indexOf('radio-browser') > -1 || url.hostname.indexOf('tomtom.com') > -1 || url.hostname.indexOf('scdn.co') > -1) { return; }
   e.respondWith(
     caches.match(req).then(function (hit) {
       var net = fetch(req).then(function (res) {

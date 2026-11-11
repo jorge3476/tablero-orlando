@@ -109,6 +109,23 @@ body.routing .dest,body.routing .favs{display:none}
 .ctrl button:active{transform:scale(.94)}
 .ctrl svg{width:30px;height:30px;fill:currentColor}
 .status{font-size:12px;color:var(--muted);min-height:16px}
+.srcsw{align-self:center;display:flex;background:#0e1319;border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.srcsw button{border:0;background:none;color:var(--muted);font:700 13px var(--body);letter-spacing:.12em;text-transform:uppercase;padding:6px 16px;min-height:34px;border-radius:999px}
+.srcsw button[aria-selected="true"]{background:#232b34;color:var(--text)}
+.music.radio .bar,.music.radio #plists{display:none}
+.music.radio .art{max-height:17%}
+.music.radio .title{-webkit-line-clamp:1;font-size:22px}
+.music.radio{gap:6px}
+.pl.add{justify-content:center;color:var(--accent);border-style:dashed;background:none}
+.pl .ph.txt{display:grid;place-items:center;font:700 13px var(--body);color:#cfe3ff}
+.rres{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:34vh;overflow:auto}
+.rrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:6px 8px;background:#0e1319}
+.rrow img,.rrow .ph{width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;background:linear-gradient(135deg,#1d3b57,#2b2146)}
+.rrow .ph.txt{display:grid;place-items:center;font:700 13px var(--body);color:#cfe3ff}
+.rrow .rt{flex:1;min-width:0}.rrow .rt b{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:15px}
+.rrow .rt small{color:var(--muted);font-size:12px}
+.rrow button{min-width:44px;min-height:40px;border-radius:10px;border:1px solid var(--line);background:#1a2027;color:var(--text);font-size:17px}
+.rrow button.on{color:var(--warn);border-color:var(--warn)}
 .plists{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:6px;overflow:hidden}
 .music.haspl .art{max-height:22%}
 .music.haspl{gap:6px}
@@ -222,12 +239,13 @@ body.night .ctrl button.play{color:#020a12}
   </section>
 
   <section class="card music" aria-label="Música">
-    <span class="label ctitle">Spotify</span>
+    <div class="srcsw" role="tablist" aria-label="Fuente de música"><button id="srcSp" role="tab">Spotify</button><button id="srcRadio" role="tab">Radio</button></div>
     <div class="art" id="art"><svg viewBox="0 0 24 24" fill="#8fc7ff"><path d="M9 3v11.6A3.5 3.5 0 1 0 11 18V8h7V3z"/></svg></div>
     <div><div class="title" id="trackTitle">Sin conectar</div><div class="artist" id="trackArtist">Abre Ajustes para enlazar Spotify</div></div>
     <div class="bar"><i id="prog"></i></div>
     <div class="status" id="spStatus"></div>
     <div class="plists" id="plists" aria-label="Listas recientes"></div>
+    <div class="plists" id="rlist" aria-label="Emisoras favoritas" hidden></div>
     <div class="ctrl">
       <button id="prev" aria-label="Canción anterior"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
       <button id="play" class="play" aria-label="Reproducir o pausar"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
@@ -320,6 +338,18 @@ body.night .ctrl button.play{color:#020a12}
 
 
   <div class="row"><button class="btn ghost" id="sClose">Cerrar</button><button class="btn solid" id="sSave">Guardar</button></div>
+</dialog>
+
+<dialog id="rdlg">
+  <h2>Emisoras</h2>
+  <p>Busca por nombre, género (rock, salsa, vallenato) o ciudad. Toca ★ para dejarla en tus favoritas del panel.</p>
+  <div class="dest" style="margin-top:10px"><input id="rq" type="search" placeholder="Ej: rock, Tropicana, jazz" autocomplete="off" enterkeyhint="search" aria-label="Buscar emisora"><button class="btn solid" id="rGo">Buscar</button></div>
+  <p id="rMsg" style="margin-top:8px"></p>
+  <div class="rres" id="rRes"></div>
+  <h3>Tus favoritas</h3>
+  <div class="rres" id="rFav"></div>
+  <p style="margin-top:14px;font-size:12px">Directorio de emisoras: Radio Browser (radio-browser.info).</p>
+  <div class="row"><button class="btn ghost" id="rClose">Cerrar</button></div>
 </dialog>
 
 <dialog id="adlg">
@@ -463,6 +493,7 @@ body.night .ctrl button.play{color:#020a12}
 
   function setStatus(t){$('spStatus').textContent=t;}
   function renderMusic(){
+    if(window.MUSIC_SRC==='radio') return;
     var linked = !!lsGet('sp_rt');
     if(!linked){ $('trackTitle').textContent='Sin conectar'; $('trackArtist').textContent='Abre Ajustes para enlazar Spotify'; return; }
     if(!SP.track){ $('trackTitle').textContent='Nada sonando'; $('trackArtist').textContent='Dale play en la app de Spotify'; }
@@ -475,6 +506,7 @@ body.night .ctrl button.play{color:#020a12}
     setStatus(SP.online ? '' : 'Sin señal: la canción sigue sonando. Para cambiarla usa el Centro de control del iPad.');
   }
   function renderProgress(){
+    if(window.MUSIC_SRC==='radio') return;
     if(!SP.track||!SP.dur){$('prog').style.width='0';return;}
     var p=SP.prog+(SP.playing?Date.now()-SP.at:0);
     $('prog').style.width=Math.min(100,p/SP.dur*100)+'%';
@@ -496,9 +528,10 @@ body.night .ctrl button.play{color:#020a12}
     catch(e){ SP.online=false; }
     setTimeout(poll,500); renderMusic();
   }
-  $('next').onclick=function(){cmd('POST','/me/player/next');};
-  $('prev').onclick=function(){cmd('POST','/me/player/previous');};
-  $('play').onclick=function(){cmd('PUT',SP.playing?'/me/player/pause':'/me/player/play'); SP.playing=!SP.playing; SP.at=Date.now(); renderMusic();};
+  $('next').onclick=function(){ if(window.MUSIC_SRC==='radio') return window.radioStep(1); cmd('POST','/me/player/next');};
+  $('prev').onclick=function(){ if(window.MUSIC_SRC==='radio') return window.radioStep(-1); cmd('POST','/me/player/previous');};
+  $('play').onclick=function(){ if(window.MUSIC_SRC==='radio') return window.radioToggle(); cmd('PUT',SP.playing?'/me/player/pause':'/me/player/play'); SP.playing=!SP.playing; SP.at=Date.now(); renderMusic();};
+  window.spPauseIfPlaying=function(){ if(SP.playing&&lsGet('sp_rt')){ SP.playing=false; cmd('PUT','/me/player/pause'); } };
   setInterval(poll,3000);
 
   /* Listas de reproducción usadas recientemente: solo las que caben, para no llenar el panel */
@@ -548,6 +581,149 @@ body.night .ctrl button.play{color:#020a12}
       PL=out; lsSet('sp_pl',JSON.stringify(PL)); drawPl();
     }catch(e){}
   }
+  /* ======================================================
+     Radio por internet: favoritas (Big R Radio) y buscador con Radio Browser
+     ====================================================== */
+  var RADIO_DEFAULT=[
+    {id:'bigr-90salt',name:'Big R · 90s Alternative Rock',url:'https://bigrradio.cdnstream1.com/5187_128',img:'',tag:'90s alternativo'},
+    {id:'bigr-postgrunge',name:'Big R · Post Grunge Rock',url:'https://bigrradio.cdnstream1.com/5203_128',img:'',tag:'Post grunge'},
+    {id:'bigr-grunge',name:'Big R · Grunge FM',url:'https://bigrradio.cdnstream1.com/5200_128',img:'',tag:'Grunge'}
+  ];
+  var RFAV; try{RFAV=JSON.parse(lsGet('radio_favs')||'null');}catch(e){} if(!Array.isArray(RFAV)||!RFAV.length) RFAV=RADIO_DEFAULT.slice();
+  function saveFav(){lsSet('radio_favs',JSON.stringify(RFAV));}
+  var audio=new Audio(); audio.preload='none';
+  var R_CUR=null, R_STATE='stop';   // stop | loading | play | error
+  window.MUSIC_SRC=lsGet('musicSrc')==='radio'?'radio':'sp';
+
+  function initials(n){return n.replace(/^Big R\s*·\s*/,'').split(/\s+/).slice(0,2).map(function(w){return w.charAt(0);}).join('').toUpperCase();}
+  function artEl(st){
+    if(st.img){var im=document.createElement('img');im.alt='';im.src=st.img;im.onerror=function(){im.replaceWith(phEl(st));};return im;}
+    return phEl(st);
+  }
+  function phEl(st){var i=document.createElement('i');i.className='ph txt';i.textContent=initials(st.name);return i;}
+
+  function renderRadio(){
+    if(window.MUSIC_SRC!=='radio') return;
+    var st=R_CUR||RFAV[0];
+    $('trackTitle').textContent=st?st.name:'Sin emisoras';
+    $('trackArtist').textContent= R_STATE==='loading'?'Conectando…': R_STATE==='play'?'En vivo'+(st&&st.tag?' · '+st.tag:''): R_STATE==='error'?'No se pudo reproducir esta emisora':'Toca play para escuchar';
+    var art=$('art'), old=art.querySelector('img'); if(old) old.remove();
+    if(st&&st.img){var im=document.createElement('img');im.alt='';im.onerror=function(){im.remove();};im.src=st.img;art.appendChild(im);}
+    $('playIcon').innerHTML = (R_STATE==='play'||R_STATE==='loading') ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    setStatus(!navigator.onLine?'Sin señal: la radio necesita internet.': R_STATE==='error'?'Prueba otra emisora o revisa la conexión.':'');
+    Array.prototype.forEach.call($('rlist').children,function(b){b.classList.toggle('on',!!R_CUR&&b.dataset.id===R_CUR.id);});
+  }
+  function drawRlist(){
+    var box=$('rlist'); box.innerHTML='';
+    RFAV.forEach(function(st){
+      var b=document.createElement('button'); b.className='pl'; b.dataset.id=st.id; b.setAttribute('aria-label','Escuchar '+st.name);
+      b.appendChild(artEl(st)); var t=document.createElement('span'); t.textContent=st.name; b.appendChild(t);
+      b.onclick=function(){radioPlay(st);}; box.appendChild(b);
+    });
+    var add=document.createElement('button'); add.className='pl add'; add.textContent='＋ Buscar emisoras'; add.onclick=openRadioSearch; box.appendChild(add);
+    setTimeout(fitRlist,30); renderRadio();
+  }
+  function fitRlist(){
+    var box=$('rlist'), kids=box.children; Array.prototype.forEach.call(kids,function(b){b.hidden=true;});
+    var n=Math.max(1,Math.floor((box.clientHeight+6)/52));
+    var favs=Math.max(0,Math.min(RFAV.length,n-1));
+    Array.prototype.forEach.call(kids,function(b,i){ b.hidden = (i<RFAV.length) ? i>=favs : false; });
+  }
+  function setMediaSession(st){
+    if(!('mediaSession' in navigator)) return;
+    try{
+      navigator.mediaSession.metadata=new MediaMetadata({title:st.name,artist:'Radio en vivo',album:'Tablero Orlando',artwork:st.img?[{src:st.img,sizes:'256x256'}]:[]});
+      navigator.mediaSession.setActionHandler('play',function(){radioToggle(true);});
+      navigator.mediaSession.setActionHandler('pause',function(){radioStop();});
+      navigator.mediaSession.setActionHandler('nexttrack',function(){radioStep(1);});
+      navigator.mediaSession.setActionHandler('previoustrack',function(){radioStep(-1);});
+    }catch(e){}
+  }
+  function radioPlay(st){
+    if(!st) return;
+    if(window.spPauseIfPlaying) window.spPauseIfPlaying();
+    R_CUR=st; R_STATE='loading'; renderRadio();
+    audio.src=st.url;
+    var p=audio.play(); if(p&&p.catch) p.catch(function(){ R_STATE='error'; renderRadio(); });
+    setMediaSession(st);
+    if(st.uuid){ try{ rbFetch('/json/url/'+st.uuid).catch(function(){}); }catch(e){} }   // cuenta la escucha en Radio Browser
+  }
+  function radioStop(){ audio.pause(); audio.removeAttribute('src'); try{audio.load();}catch(e){} R_STATE='stop'; renderRadio(); }
+  function radioToggle(forcePlay){ if(!forcePlay && (R_STATE==='play'||R_STATE==='loading')) radioStop(); else radioPlay(R_CUR||RFAV[0]); }
+  function radioStep(d){
+    if(!RFAV.length) return; var i=R_CUR?RFAV.findIndex(function(x){return x.id===R_CUR.id;}):-1;
+    radioPlay(RFAV[(i+d+RFAV.length)%RFAV.length]);
+  }
+  window.radioStep=radioStep; window.radioToggle=radioToggle;
+  audio.addEventListener('playing',function(){R_STATE='play';renderRadio();});
+  audio.addEventListener('waiting',function(){ if(R_STATE!=='stop'){R_STATE='loading';renderRadio();} });
+  audio.addEventListener('error',function(){ if(R_STATE!=='stop'){R_STATE='error';renderRadio();} });
+
+  function setSource(src){
+    window.MUSIC_SRC=src; lsSet('musicSrc',src);
+    $('srcSp').setAttribute('aria-selected',src==='sp'); $('srcRadio').setAttribute('aria-selected',src==='radio');
+    document.querySelector('.music').classList.toggle('radio',src==='radio');
+    $('rlist').hidden=src!=='radio';
+    if(src==='radio'){ drawRlist(); }
+    else { if(R_STATE!=='stop') radioStop(); var old=$('art').querySelector('img'); if(old) old.remove(); renderMusic(); poll(); }
+  }
+  $('srcSp').onclick=function(){setSource('sp');};
+  $('srcRadio').onclick=function(){setSource('radio');};
+
+  /* ---- buscador con Radio Browser (gratis, sin clave) ---- */
+  var RB=['de1','nl1','at1'];
+  function rbFetch(path){
+    var i=0;
+    function tryNext(){
+      if(i>=RB.length) return Promise.reject(new Error('sin servidor'));
+      var host='https://'+RB[i++]+'.api.radio-browser.info';
+      return fetch(host+path).then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); }).catch(tryNext);
+    }
+    return tryNext();
+  }
+  function stFromRB(x){
+    var u=(x.url_resolved||x.url||'').replace(/^http:\/\//,'https://');
+    return {id:'rb-'+x.stationuuid,uuid:x.stationuuid,name:x.name.trim(),url:u,img:/^https:/.test(x.favicon||'')?x.favicon:'',
+      tag:[x.countrycode,(x.tags||'').split(',')[0],x.bitrate?x.bitrate+' kbps':''].filter(Boolean).join(' · ')};
+  }
+  function isFav(id){return RFAV.some(function(x){return x.id===id;});}
+  function rowEl(st){
+    var r=document.createElement('div'); r.className='rrow'; r.appendChild(artEl(st));
+    var t=document.createElement('div'); t.className='rt'; var b=document.createElement('b'); b.textContent=st.name; var sm=document.createElement('small'); sm.textContent=st.tag||''; t.appendChild(b); t.appendChild(sm); r.appendChild(t);
+    var pl=document.createElement('button'); pl.textContent='▶'; pl.setAttribute('aria-label','Escuchar '+st.name);
+    pl.onclick=function(){ if(window.MUSIC_SRC!=='radio') setSource('radio'); radioPlay(st); };
+    var fv=document.createElement('button'); fv.textContent='★'; fv.className=isFav(st.id)?'on':''; fv.setAttribute('aria-label',(isFav(st.id)?'Quitar de':'Agregar a')+' favoritas');
+    fv.onclick=function(){
+      if(isFav(st.id)) RFAV=RFAV.filter(function(x){return x.id!==st.id;}); else RFAV.push(st);
+      if(!RFAV.length) RFAV=RADIO_DEFAULT.slice();
+      saveFav(); drawRFavs(); drawRlist(); fv.className=isFav(st.id)?'on':'';
+    };
+    r.appendChild(pl); r.appendChild(fv); return r;
+  }
+  function drawRFavs(){ var box=$('rFav'); box.innerHTML=''; RFAV.forEach(function(st){box.appendChild(rowEl(st));}); }
+  function radioSearch(){
+    var q=$('rq').value.trim(); if(!q){$('rq').focus();return;}
+    if(!navigator.onLine){$('rMsg').textContent='Sin internet no se pueden buscar emisoras.';return;}
+    $('rMsg').textContent='Buscando…'; $('rRes').innerHTML='';
+    var qs='&hidebroken=true&order=clickcount&reverse=true&limit=25&is_https=true';
+    rbFetch('/json/stations/search?name='+encodeURIComponent(q)+qs)
+      .then(function(a){ return a.length?a:rbFetch('/json/stations/search?tag='+encodeURIComponent(q.toLowerCase())+qs); })
+      .then(function(a){
+        var seen={}; a=a.filter(function(x){ var k=x.name.trim().toLowerCase(); if(seen[k]) return false; seen[k]=1; return true; });
+        $('rMsg').textContent=a.length?'':'No encontré emisoras con ese nombre o género.';
+        a.forEach(function(x){ $('rRes').appendChild(rowEl(stFromRB(x))); });
+      })
+      .catch(function(){ $('rMsg').textContent='No se pudo conectar al directorio de emisoras. Intenta de nuevo.'; });
+  }
+  function openRadioSearch(){ drawRFavs(); $('rMsg').textContent=''; openDlg($('rdlg')); setTimeout(function(){$('rq').focus();},200); }
+  $('rGo').onclick=radioSearch;
+  $('rq').addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();$('rq').blur();radioSearch();} });
+  $('rClose').onclick=function(){$('rdlg').close();};
+  window.addEventListener('resize',function(){ if(window.MUSIC_SRC==='radio') setTimeout(fitRlist,120); });
+  if(window.ResizeObserver){ try{ new ResizeObserver(function(){ if(window.MUSIC_SRC==='radio') fitRlist(); }).observe($('rlist')); }catch(e){} }
+  window.addEventListener('online',renderRadio); window.addEventListener('offline',renderRadio);
+  setTimeout(function(){ setSource(window.MUSIC_SRC); },0);
+
   window.addEventListener('resize',function(){setTimeout(fitPl,120);});
   if(window.ResizeObserver){ try{ new ResizeObserver(function(){fitPl();}).observe($('plists')); }catch(e){} }
   window.loadPlSoon=loadPl; drawPl(); setTimeout(loadPl,1500); setInterval(loadPl,5*60*1000);
@@ -1019,7 +1195,7 @@ body.night .ctrl button.play{color:#020a12}
   /* ======================================================
      Respaldo y restauración de datos
      ====================================================== */
-  var BK_KEYS=['clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
+  var BK_KEYS=['radio_favs','musicSrc','clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
   function bkMake(){var o={app:'tablero-orlando',v:1,fecha:new Date().toISOString(),datos:{}};BK_KEYS.forEach(function(k){var v=lsGet(k);if(v!==null)o.datos[k]=v;});return JSON.stringify(o);}
   function bkMsg(t){$('bkMsg').textContent=t;}
   function bkApply(txt){
