@@ -589,23 +589,23 @@ body.night .ctrl button.play{color:#020a12}
      Radio por internet: favoritas (Big R Radio) y buscador con Radio Browser
      ====================================================== */
   var RADIO_DEFAULT=[
-    {id:'bigr-90salt',name:'90s Alternative Rock',q:'90s Alternative Rock',url:'https://bigrradio.cdnstream1.com/5187_128',tag:'Big R Radio'},
-    {id:'bigr-80sfm',name:'80s FM',q:'80s FM',tag:'Big R Radio'},
-    {id:'bigr-warm',name:'101.6 Adult Warm Hits',q:'Adult Warm Hits',url:'https://bigrradio.cdnstream1.com/5177_128',tag:'Big R Radio'},
-    {id:'bigr-energy98',name:'Energy 98',q:'Energy 98',tag:'Big R Radio'},
-    {id:'bigr-latjazz',name:'Latin Jazz',q:'Latin Jazz',tag:'Big R Radio'},
-    {id:'bigr-reggaeton',name:'Latin Reggaeton',q:'Latin Reggaeton',tag:'Big R Radio'},
-    {id:'bigr-lathiphop',name:'Latin Hip-Hop',q:'Latin Hip-Hop',tag:'Big R Radio'},
-    {id:'bigr-regmex',name:'Regional Mexican',q:'Regional Mexican',tag:'Big R Radio'},
-    {id:'bigr-salsa',name:'Latin Salsa',q:'Latin Salsa',tag:'Big R Radio'},
-    {id:'bigr-tropical',name:'Latin Tropical',q:'Latin Tropicalia',tag:'Big R Radio'}
+    {id:'bigr-90salt',name:'90s Alternative Rock',url:'https://bigrradio.cdnstream1.com/5187_128',tag:'Big R Radio'},
+    {id:'bigr-80sfm',name:'80s FM',url:'https://bigrradio.cdnstream1.com/5184_128',tag:'Big R Radio'},
+    {id:'bigr-warm',name:'101.6 Adult Warm Hits',url:'https://bigrradio.cdnstream1.com/5177_128',tag:'Big R Radio'},
+    {id:'bigr-energy98',name:'Energy 98',url:'https://listen.181fm.com/181-energy98_128k.mp3',tag:'181.FM'},
+    {id:'bigr-latjazz',name:'Latin Jazz',url:'https://bigrradio.cdnstream1.com/5224_128',tag:'Big R Radio'},
+    {id:'bigr-reggaeton',name:'Latin Reggaeton',url:'https://bigrradio.cdnstream1.com/5228_128',tag:'Big R Radio'},
+    {id:'bigr-lathiphop',name:'Latin Hip-Hop',url:'https://bigrradio.cdnstream1.com/5223_128',tag:'Big R Radio'},
+    {id:'bigr-regmex',name:'Regional Mexican',url:'https://bigrradio.cdnstream1.com/5229_128',tag:'Big R Radio'},
+    {id:'bigr-salsa',name:'Latin Salsa',url:'https://bigrradio.cdnstream1.com/5231_128',tag:'Big R Radio'},
+    {id:'bigr-tropical',name:'Latin Tropical',url:'https://bigrradio.cdnstream1.com/5233_128',tag:'Big R Radio'}
   ];
   var RFAV; try{RFAV=JSON.parse(lsGet('radio_favs')||'null');}catch(e){}
   if(!Array.isArray(RFAV)||!RFAV.length) RFAV=RADIO_DEFAULT.slice();
-  else if(lsGet('radio_v')!=='2'){   // nueva lista de Big R; se conservan las que agregaste con el buscador
+  else if(lsGet('radio_v')!=='3'){   // nueva lista de Big R; se conservan las que agregaste con el buscador
     RFAV=RADIO_DEFAULT.concat(RFAV.filter(function(x){return x.id.indexOf('bigr-')!==0;}));
   }
-  lsSet('radio_v','2');
+  lsSet('radio_v','3');
   function saveFav(){lsSet('radio_favs',JSON.stringify(RFAV));}
   saveFav();
   var audio=new Audio(); audio.preload='none';
