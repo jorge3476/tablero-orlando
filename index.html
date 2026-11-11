@@ -12,6 +12,8 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Tablero Orlando</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Yellowtail&family=Oswald:wght@600&display=swap" rel="stylesheet">
+<script type="importmap">{"imports":{"three":"./lib/three/build/three.module.min.js"}}</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -53,7 +55,12 @@ header b{white-space:nowrap}
 .carbox{width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:4px 0}
 .carbox img{max-width:100%;max-height:100%;object-fit:contain;transition:opacity .18s;filter:drop-shadow(0 16px 12px rgba(0,0,0,.6)) drop-shadow(0 0 24px rgba(62,166,255,.14))}
 .carbox img.fade{opacity:0}
-.carbox{position:relative;cursor:pointer}
+.carbox{position:relative}
+.car3d{display:none;position:absolute;inset:0}
+.carbox.v3d .car3d{display:block}.carbox.v3d img,.carbox.v3d .topcar{display:none}
+.car3d canvas{opacity:0;transition:opacity .5s}.car3d.ready canvas{opacity:1}
+.hint3d{position:absolute;left:0;right:0;top:2px;text-align:center;font-size:11px;color:var(--muted);pointer-events:none;transition:opacity .6s}
+.car3d.touched .hint3d{opacity:0}
 .topcar{display:none;height:100%;width:auto;max-width:100%;overflow:visible}
 .carbox.v2d img{display:none}.carbox.v2d .topcar{display:block}
 .viewbtn{position:absolute;right:0;bottom:0;border:1px solid var(--line);background:rgba(20,24,29,.85);color:var(--muted);border-radius:999px;font:600 12px var(--body);padding:6px 10px;min-height:32px}
@@ -226,6 +233,7 @@ body.night .ctrl button.play{color:#020a12}
     <div><div class="speed" id="speed">0</div><div class="unit">KM/H</div></div>
     <div class="carbox" id="carbox">
       <img id="carImg" alt="Chevrolet Orlando" src="cars/orlando-principal.webp" draggable="false">
+      <div class="car3d" id="car3d" aria-label="Modelo 3D del carro: arrastra para girarlo"><span class="hint3d">Arrastra para girarlo</span></div>
       <svg class="topcar" id="topCar" viewBox="-62 -118 308 648" role="img" aria-label="Vista del carro desde arriba">
         <defs>
           <linearGradient id="tcBody" x1="0" x2="1"><stop offset="0" stop-color="#7d8894"/><stop offset=".22" stop-color="#c9d0d7"/><stop offset=".5" stop-color="#e3e7eb"/><stop offset=".78" stop-color="#c9d0d7"/><stop offset="1" stop-color="#7d8894"/></linearGradient>
@@ -357,6 +365,12 @@ body.night .ctrl button.play{color:#020a12}
   <label for="nightMode">Modo noche</label>
   <select id="nightMode"><option value="auto">Automático (6:00 p. m. a 6:00 a. m.)</option><option value="on">Siempre</option><option value="off">Nunca</option></select>
 
+  <h3>Placa del modelo 3D</h3>
+  <div class="two">
+    <div><label for="plateTop">Texto en cursiva</label><input id="plateTop" type="text" maxlength="16" autocomplete="off"></div>
+    <div><label for="plateNum">Placa</label><input id="plateNum" type="text" maxlength="8" autocomplete="off" autocapitalize="characters"></div>
+  </div>
+
   <h3>Documentos</h3>
   <p>Te aviso desde dos días antes de que venzan.</p>
   <div class="two">
@@ -392,6 +406,8 @@ body.night .ctrl button.play{color:#020a12}
     <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="btn" id="bkFileBtn">Elegir archivo</button><button class="btn solid" id="bkApply">Restaurar este código</button></div>
   </div>
   <p id="bkMsg" style="margin-top:8px"></p>
+
+  <p style="margin-top:18px;font-size:12px">Modelo 3D: “Chevrolet Orlando 2011” por Q.SARDOR (Sketchfab), licencia CC BY 4.0, simplificado y con placa modificada. Motor 3D: three.js (licencia MIT).</p>
 
   <div class="row"><button class="btn ghost" id="sClose">Cerrar</button><button class="btn solid" id="sSave">Guardar</button></div>
 </dialog>
@@ -844,6 +860,8 @@ body.night .ctrl button.play{color:#020a12}
     var p=parseInt($('plate').value,10); if(p>=0&&p<=9){PLATE=p;lsSet('plate',p);}
     MAIN=$('mainCity').value; lsSet('mainCity',MAIN); VIEW=MAIN;
     lsSet('night',$('nightMode').value);
+    var pt=$('plateTop').value.trim()||'Teacher', pn=$('plateNum').value.trim().toUpperCase()||'LACO 52';
+    if(pt!==(lsGet('plateTop')||'Teacher')||pn!==(lsGet('plateNum')||'LACO 52')){ lsSet('plateTop',pt); lsSet('plateNum',pn); if(window.Car3D)window.Car3D.setPlate(pt,pn); }
     ['soat','rtm'].forEach(function(k){var v=$(k+'D').value; if(v!==DOCS[k].vence){DOCS[k].vence=v;DOCS[k].snooze='';delete SESS[k];}});
     saveDocs();
     var o=parseFloat($('odoIn').value);
@@ -857,7 +875,7 @@ body.night .ctrl button.play{color:#020a12}
     $('redir').textContent=REDIR; $('cid').value=lsGet('sp_cid')||''; $('tank').value=TANK; $('plate').value=PLATE;
     $('mainCity').value=MAIN; $('nightMode').value=lsGet('night')||'auto';
     $('soatD').value=DOCS.soat.vence; $('rtmD').value=DOCS.rtm.vence;
-    $('odoIn').value=MANT.odo==null?'':Math.round(MANT.odo); $('ttKey').value=lsGet('tt_key')||''; drawMant(); openDlg(sd);
+    $('odoIn').value=MANT.odo==null?'':Math.round(MANT.odo); $('ttKey').value=lsGet('tt_key')||''; $('plateTop').value=lsGet('plateTop')||'Teacher'; $('plateNum').value=lsGet('plateNum')||'LACO 52'; drawMant(); openDlg(sd);
   };
   $('sClose').onclick=function(){sd.close();};
   $('sSave').onclick=function(){saveSettings();sd.close();showAlerts();};
@@ -1112,20 +1130,34 @@ body.night .ctrl button.play{color:#020a12}
   var DEMO=[{lights:{park:1,low:1}},{doors:{fl:1}},{doors:{fl:0},windows:{fr:1}},{windows:{fr:0},lights:{turnL:1}},{lights:{turnL:0,high:1}},
             {lights:{high:0},doors:{hatch:1}},{doors:{hatch:0,rr:1}},{doors:{rr:0},lights:{brake:1}},{lights:{brake:0,low:0,park:0}},{}];
   function stopDemo(){ if(carDemo){clearInterval(carDemo);carDemo=null;} if(demoOn){demoOn=false;CAR={doors:{},lights:{},windows:{}};renderTop();} }
-  function startDemo(){ stopDemo(); demoOn=true; var i=0; window.setCarState(DEMO[0]); carDemo=setInterval(function(){ if(!S.demo||!$('carbox').classList.contains('v2d')){stopDemo();return;} i=(i+1)%DEMO.length; window.setCarState(DEMO[i]); },1700); }
-  function setView(v2d){
-    var cb=$('carbox'); cb.classList.toggle('v2d',v2d); lsSet('carView',v2d?'2d':'foto');
-    $('viewBtn').textContent=v2d?'Foto':'Vista 2D';
-    if(v2d && S.demo) startDemo(); else stopDemo();
+  function startDemo(){ stopDemo(); demoOn=true; var i=0; window.setCarState(DEMO[0]); carDemo=setInterval(function(){ if(!S.demo||VIEW_MODE!=='2d'){stopDemo();return;} i=(i+1)%DEMO.length; window.setCarState(DEMO[i]); },1700); }
+  /* Vistas del carro: 3D (se puede girar), 2D desde arriba y foto como respaldo */
+  var VIEW_MODE='3d', has3d=(function(){try{var c=document.createElement('canvas');return !!(window.WebGLRenderingContext&&(c.getContext('webgl2')||c.getContext('webgl')));}catch(e){return false;}})();
+  function show3d(){
+    var el=$('car3d');
+    if(window.Car3D){ if(window.Car3D.failed){ $('carbox').classList.remove('v3d'); return; } window.Car3D.show(el); }
+    else window.addEventListener('car3d-ready',function(){ if(VIEW_MODE==='3d') window.Car3D.show(el); },{once:true});
+  }
+  window.addEventListener('car3d-fail',function(){ if(VIEW_MODE==='3d'){ $('carbox').classList.remove('v3d'); } });
+  $('car3d').addEventListener('pointerdown',function(){ this.classList.add('touched'); });
+  function setView(mode){
+    if(mode==='3d'&&!has3d) mode='foto';
+    VIEW_MODE=mode; var cb=$('carbox');
+    cb.classList.toggle('v3d',mode==='3d'); cb.classList.toggle('v2d',mode==='2d');
+    lsSet('carView',mode);
+    $('viewBtn').textContent= mode==='2d' ? (has3d?'Vista 3D':'Foto') : 'Vista 2D';
+    if(mode==='3d') show3d(); else if(window.Car3D) window.Car3D.hide();
+    if(mode==='2d' && S.demo) startDemo(); else stopDemo();
     renderTop();
   }
-  $('carbox').onclick=function(){ setView(!$('carbox').classList.contains('v2d')); };
-  setView(lsGet('carView')==='2d');
+  $('viewBtn').onclick=function(e){ e.stopPropagation(); setView(VIEW_MODE==='2d' ? (has3d?'3d':'foto') : '2d'); };
+  $('carbox').onclick=function(){ if(VIEW_MODE==='foto') setView('2d'); };
+  (function(){ var v=lsGet('carView'); setView(v==='2d'?'2d':(v==='foto'?'foto':'3d')); })();
 
   /* ======================================================
      Respaldo y restauración de datos
      ====================================================== */
-  var BK_KEYS=['carView','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
+  var BK_KEYS=['plateTop','plateNum','carView','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
   function bkMake(){var o={app:'tablero-orlando',v:1,fecha:new Date().toISOString(),datos:{}};BK_KEYS.forEach(function(k){var v=lsGet(k);if(v!==null)o.datos[k]=v;});return JSON.stringify(o);}
   function bkMsg(t){$('bkMsg').textContent=t;}
   function bkApply(txt){
@@ -1164,5 +1196,6 @@ body.night .ctrl button.play{color:#020a12}
   renderCar(); renderMusic(); net(); drawMap(); poll();
 })();
 </script>
+<script type="module" src="car3d.js"></script>
 </body>
 </html>

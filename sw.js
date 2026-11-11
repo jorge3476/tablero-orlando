@@ -1,7 +1,9 @@
 // Guarda el tablero en el iPad para que abra sin internet. Spotify siempre va por red.
-var CACHE = 'orlando-v12';
+var CACHE = 'orlando-v13';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png',
-  './cars/orlando-principal.webp'];
+  './cars/orlando-principal.webp', './cars/orlando.glb', './car3d.js',
+  './lib/three/build/three.module.min.js', './lib/three/examples/jsm/loaders/GLTFLoader.js', './lib/three/examples/jsm/controls/OrbitControls.js',
+  './lib/three/examples/jsm/environments/RoomEnvironment.js', './lib/three/examples/jsm/utils/BufferGeometryUtils.js'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) {
