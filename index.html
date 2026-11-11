@@ -137,7 +137,12 @@ dialog .row{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-
 .app.nopp{grid-template-areas:"h h h" "sp nv mu" "fu fu fu"}
 .app.nopp .pyp{display:none}
 @media (orientation:portrait){.app.nopp{grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto;grid-template-areas:"h h" "sp mu" "nv nv" "fu fu"}}
-#ppShow{display:none}.app.nopp #ppShow{display:inline-flex}
+#ppShow{display:none}.app.nopp #ppShow{display:flex}
+.pyp{flex-direction:row;padding:0;gap:0}
+.pbody{flex:1;min-width:0;padding:12px 16px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.pcol{flex-shrink:0;width:46px;display:flex;align-items:center;justify-content:center;border:0;border-left:1px solid var(--line);background:#1a2027;color:var(--muted);font-size:26px;border-radius:0 17px 17px 0;cursor:pointer}
+.pcol:active{background:var(--accent);color:#04121f}
+.pshow{align-self:stretch;margin:-12px 4px -12px -18px;border-left:0;border-right:1px solid var(--line);border-radius:17px 0 0 17px}
 .pyp.warn{border-left-color:var(--warn)}.pyp.crit{border-left-color:var(--crit)}
 .pyp .label{white-space:nowrap}
 .pyp .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
@@ -226,13 +231,17 @@ body.night .ctrl button.play{color:#020a12}
   </section>
 
   <section class="card pyp" id="pyp" aria-label="Pico y placa">
-    <div class="top"><span class="label">Pico y placa</span><span id="pDig" hidden></span><span style="display:flex;align-items:center;gap:2px"><button class="citybtn" id="cityBtn">Villavicencio</button><button class="pclose" id="ppHide" aria-label="Ocultar pico y placa">×</button></span></div>
+    <div class="pbody">
+    <div class="top"><span class="label">Pico y placa</span><span id="pDig" hidden></span><button class="citybtn" id="cityBtn">Villavicencio</button></div>
     <div class="pstate" id="pState">Hoy puedes circular</div>
     <div class="psub" id="pSub"></div>
     <div class="psub" id="pNext"></div>
+    </div>
+    <button class="pcol" id="ppHide" aria-label="Ocultar pico y placa">←</button>
   </section>
 
   <section class="card fuel" aria-label="Combustible">
+    <button class="pcol pshow" id="ppShow" aria-label="Mostrar pico y placa">→</button>
     <div class="gauge">
       <div class="label">Gasolina · <span id="gal">0.0</span> de <span id="cap">16.9</span> gal</div>
       <div class="track"><i id="fuelBar"></i></div>
@@ -241,7 +250,7 @@ body.night .ctrl button.play{color:#020a12}
     <div class="stat"><strong id="range">0</strong><span>km de autonomía</span></div>
     <div class="stat"><strong id="kmgal">0.0</strong><span>km por galón</span></div>
     <div class="stat"><strong id="galkm">0.000</strong><span>galones por km</span></div>
-    <button class="btn" id="ppShow" aria-label="Mostrar pico y placa">Pico y placa</button><button class="btn" id="refuelBtn" aria-label="Registrar tanqueo">Registrar ⛽️</button>
+    <button class="btn" id="refuelBtn" aria-label="Registrar tanqueo">Registrar ⛽️</button>
   </section>
 </div>
 
