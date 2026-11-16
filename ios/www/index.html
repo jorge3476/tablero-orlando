@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Orlando">
+<meta name="theme-color" content="#0b0d10">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Tablero Orlando</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: horizontal = 3 columnas (carro | navegación | música) + franja de gasolina.
+   Vertical = carro y música arriba, navegación al centro, gasolina abajo. */
+:root{
+  --bg:#0b0d10; --panel:#14181d; --line:#232a32; --text:#eef1f4; --muted:#8a94a0;
+  --accent:#3ea6ff; --good:#38d39f; --warn:#ffb020; --crit:#ff5c5c;
+  --display:'Barlow Condensed','Arial Narrow',sans-serif; --body:'Barlow',system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--body);overflow:hidden;
+  padding:max(12px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+  -webkit-user-select:none;user-select:none;touch-action:manipulation}
+.app{height:100%;display:grid;gap:12px;min-height:0;
+  grid-template-columns:minmax(0,1.05fr) minmax(0,1.3fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-areas:"h h h" "sp nv mu" "pp fu fu"}
+@media (orientation:portrait){
+  .app{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto;
+    grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto auto;grid-template-areas:"h h" "sp mu" "nv nv" "pp pp" "fu fu"}
+}
+header{grid-area:h;display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--muted);font-size:15px}
+header b{color:var(--text);font-family:var(--display);font-size:22px;letter-spacing:.06em;font-weight:600}
+.hr{display:flex;gap:8px;align-items:center;white-space:nowrap}
+header b{white-space:nowrap}
+@media (orientation:portrait){header b{font-size:17px;letter-spacing:.03em}.chip{padding:6px 10px;font-size:13px}}
+.chip{border:1px solid var(--line);border-radius:999px;padding:6px 14px;background:var(--panel);color:var(--text);font:inherit;font-size:14px;min-height:40px}
+.chip[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:6px}
+.dot.ok{background:var(--good)}.dot.bad{background:var(--crit)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;min-height:0;display:flex;flex-direction:column}
+.label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.ctitle{display:block;text-align:center;font-size:13px;font-weight:700;color:#b6bfc9;letter-spacing:.16em}
+body.night .ctitle{color:var(--muted)}
+#clock{font-family:var(--display);font-size:24px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+#date{font-size:15px;color:var(--muted);white-space:nowrap}
+@media (orientation:portrait){#date{display:none}}
+.speedcard{grid-area:sp;align-items:center;justify-content:space-between;background:radial-gradient(120% 80% at 50% 100%,#162433 0%,var(--panel) 60%)}
+.speed{font-family:var(--display);font-weight:600;font-size:clamp(84px,16vh,150px);line-height:.9;font-variant-numeric:tabular-nums;text-align:center}
+.unit{font-family:var(--display);font-size:22px;color:var(--muted);letter-spacing:.12em;text-align:center}
+.carbox{width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:4px 0}
+.carbox img{max-width:100%;max-height:100%;object-fit:contain;transition:opacity .18s;filter:drop-shadow(0 16px 12px rgba(0,0,0,.6)) drop-shadow(0 0 24px rgba(62,166,255,.14))}
+.carbox img.fade{opacity:0}
+.carbox{position:relative}
+.trip{display:flex;gap:26px;font-variant-numeric:tabular-nums}
+.obd{display:flex;gap:18px;justify-content:center;font-variant-numeric:tabular-nums;margin-top:6px}
+.obd div{text-align:center}.obd strong{display:block;font-family:var(--display);font-size:20px;font-weight:600}
+.obd .warn strong{color:var(--warn)}.obd .crit strong{color:var(--crit)}
+#hello{position:fixed;inset:0;z-index:999;background:#0b0d10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .6s ease}
+#hello.out{opacity:0;pointer-events:none}
+#hello .hi{font-family:var(--display);font-weight:600;font-size:clamp(44px,9vw,84px);letter-spacing:.02em;color:#e8edf2;opacity:0;transform:translateY(10px);animation:hiIn .7s .15s ease forwards}
+#hello .sub{font-size:16px;letter-spacing:.2em;text-transform:uppercase;color:#7d8894;opacity:0;animation:hiIn .7s .45s ease forwards}
+@keyframes hiIn{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#hello .hi,#hello .sub{animation:none;opacity:1;transform:none}}
+.obdlist button{display:block;width:100%;text-align:left;margin-top:6px;background:#1a2027;border:1px solid var(--line);border-radius:10px;color:var(--text);font:600 15px var(--body);padding:10px 12px}
+.obdlist button span{color:var(--muted);font-weight:400;font-size:13px;margin-left:8px}
+.trip div{text-align:center}.trip strong{display:block;font-family:var(--display);font-size:26px;font-weight:600}
+/* navegación */
+.nav{grid-area:nv;gap:10px}
+.map{flex:1;min-height:60px;border-radius:12px;position:relative;overflow:hidden;background:#0e1319;border:1px solid var(--line)}
+.map canvas{width:100%;height:100%;display:block}
+#tmap{position:absolute;inset:0;background:#0e1319}
+#tmap .leaflet-control-attribution{background:rgba(11,13,16,.7);color:var(--muted);font-size:10px}
+#tmap .leaflet-control-attribution a{color:var(--muted)}
+.carpin{width:34px;height:34px;display:grid;place-items:center}
+.carpin i{display:block;width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:28px solid var(--accent);filter:drop-shadow(0 0 6px rgba(62,166,255,.8))}
+.destpin{width:18px;height:18px;border-radius:50%;background:var(--crit);border:3px solid #fff}
+.guide{position:absolute;z-index:500;left:10px;right:10px;top:10px;display:flex;gap:12px;align-items:center;background:rgba(12,16,20,.92);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.gman{font-size:40px;line-height:1;width:48px;text-align:center;color:var(--accent);font-weight:700}
+.gdist{font-family:var(--display);font-size:30px;font-weight:600;line-height:1}
+.gmsg{font-size:16px;color:var(--text);line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.mapbtns{position:absolute;z-index:500;right:10px;bottom:22px;display:flex;flex-direction:row;gap:8px}
+body.routing .dest,body.routing .favs{display:none}
+.mapbtns button{min-width:48px;min-height:48px;border-radius:12px;border:1px solid var(--line);background:rgba(20,24,29,.92);color:var(--text);font:600 14px var(--body);padding:0 8px}
+.mapbtns button[aria-pressed="false"]{color:var(--muted);text-decoration:line-through}
+.results{position:absolute;z-index:600;left:10px;right:10px;bottom:10px;max-height:70%;overflow:auto;background:rgba(12,16,20,.96);border:1px solid var(--line);border-radius:14px;padding:6px}
+.results button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);color:var(--text);font:600 16px var(--body);padding:12px 10px}
+.results button span{display:block;font-weight:400;font-size:13px;color:var(--muted);margin-top:2px}
+.results button:last-child{border-bottom:0}
+.tripbar{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15px;color:var(--muted)}
+.tripbar strong{font-family:var(--display);font-size:26px;color:var(--text);font-weight:600}
+#favAdd{min-width:52px;padding:0 12px}
+.map .note{position:absolute;left:12px;bottom:8px;right:12px;font-size:12px;color:var(--muted)}
+.dest{display:flex;gap:8px}
+.dest input{flex:1;min-height:48px;border-radius:12px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 14px;font-size:17px;-webkit-user-select:text;user-select:text;min-width:0}
+.favs{display:flex;gap:8px;flex-wrap:wrap}
+.fav{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#1a2027}
+.fav button{background:none;border:0;color:var(--text);font:500 15px var(--body);padding:0 14px;min-height:40px}
+.fav button.x{color:var(--muted);padding:0 12px 0 4px}
+.navbtns{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.navbtns button{min-height:54px;border-radius:14px;border:1px solid var(--line);background:#1a2027;color:var(--text);font:600 16px var(--body)}
+.navbtns button:active{background:var(--accent);color:#04121f}
+/* música */
+.music{grid-area:mu;gap:8px}
+.art{aspect-ratio:1;max-height:34%;align-self:center;border-radius:14px;background:linear-gradient(135deg,#1d3b57,#0f1b28 55%,#2b2146);display:grid;place-items:center;border:1px solid var(--line);overflow:hidden;position:relative}
+.art svg{width:46%;opacity:.8}.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.title{font-family:var(--display);font-size:26px;font-weight:600;line-height:1.1;text-wrap:balance;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.artist{color:var(--muted);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{height:5px;background:#232a32;border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--accent)}
+.ctrl{display:flex;justify-content:space-between;align-items:center;margin-top:auto}
+.ctrl button{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);background:#1a2027;color:var(--text);display:grid;place-items:center}
+.ctrl button.play{background:var(--accent);color:#04121f;border-color:var(--accent)}
+.ctrl button:active{transform:scale(.94)}
+.ctrl svg{width:30px;height:30px;fill:currentColor}
+.status{font-size:12px;color:var(--muted);min-height:16px}
+.srcsw{align-self:center;display:flex;background:#0e1319;border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.srcsw button{border:0;background:none;color:var(--muted);font:700 13px var(--body);letter-spacing:.12em;text-transform:uppercase;padding:6px 16px;min-height:34px;border-radius:999px}
+.srcsw button[aria-selected="true"]{background:#232b34;color:var(--text)}
+.music.radio .bar,.music.radio #plists{display:none}
+.music.radio #art{aspect-ratio:auto;width:100%;max-height:none;height:19%;min-height:64px;align-self:stretch;flex:none;background:#0b0414}
+.music.radio .art svg,.music.radio .art img{display:none}
+#rvis{display:none;position:absolute;inset:0;width:100%;height:100%}
+.music.radio #rvis{display:block}
+.music.radio .title{-webkit-line-clamp:1;font-size:22px}
+.music.radio{gap:6px}
+.pl.add{justify-content:center;color:var(--accent);border-style:dashed;background:none}
+.music.radio #rlist{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-content:start;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px}
+.rchip{min-height:42px;padding:4px 10px;border-radius:10px;border:1px solid var(--line);background:#1a2027;color:var(--text);font:600 13px var(--body);text-align:left;line-height:1.15;overflow:hidden}
+.rchip.on{border-color:var(--accent);color:var(--accent);background:#14273a}
+.rchip.add{color:var(--accent);border-style:dashed;background:none;text-align:center}
+.pl .ph.txt{display:grid;place-items:center;font:700 13px var(--body);color:#cfe3ff}
+.rres{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:34vh;overflow:auto}
+.rrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:6px 8px;background:#0e1319}
+.rrow img,.rrow .ph{width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;background:linear-gradient(135deg,#1d3b57,#2b2146)}
+.rrow .ph.txt{display:grid;place-items:center;font:700 13px var(--body);color:#cfe3ff}
+.rrow .rt{flex:1;min-width:0}.rrow .rt b{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:15px}
+.rrow .rt small{color:var(--muted);font-size:12px}
+.rrow button{min-width:44px;min-height:40px;border-radius:10px;border:1px solid var(--line);background:#1a2027;color:var(--text);font-size:17px}
+.rrow button.on{color:var(--warn);border-color:var(--warn)}
+.plists{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:6px;overflow:hidden}
+.music.haspl .art{max-height:22%}
+.music.haspl{gap:6px}
+.pl{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:4px 10px 4px 5px;border-radius:12px;border:1px solid var(--line);background:#1a2027;color:var(--text);font:600 15px var(--body);text-align:left}
+.pl img,.pl .ph{width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;background:linear-gradient(135deg,#1d3b57,#2b2146)}
+.pl span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.pl.on{border-color:var(--accent);color:var(--accent)}
+.pl:active{transform:scale(.98)}
+/* combustible */
+.fuel{grid-area:fu;flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px 18px;padding:12px 18px}
+.gauge{flex:1.4;min-width:180px}
+.gauge .track{height:14px;border-radius:7px;background:#232a32;margin-top:8px;overflow:hidden}
+.gauge .track i{display:block;height:100%;border-radius:7px;background:var(--good);transition:width .6s,background .3s}
+.gauge .ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
+.stat{min-width:88px}.stat strong{display:block;font-family:var(--display);font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat span{font-size:13px;color:var(--muted)}
+.btn{min-height:52px;align-items:center;justify-content:center;padding:0 20px;border-radius:14px;border:1px solid var(--accent);background:transparent;color:var(--accent);font:600 16px var(--body)}
+.btn.solid{background:var(--accent);color:#04121f}
+dialog{margin:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:18px;padding:22px;width:min(460px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{font-family:var(--display);font-size:26px;margin-bottom:8px}
+dialog p{color:var(--muted);font-size:14px;line-height:1.4}
+dialog label{display:block;margin:12px 0 4px;color:var(--muted);font-size:14px}
+dialog input{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 12px;font-size:16px;-webkit-user-select:text;user-select:text}
+dialog code{display:block;word-break:break-all;background:#0e1319;border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;margin-top:4px;-webkit-user-select:text;user-select:text}
+dialog .row{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-wrap:wrap}
+/* pico y placa */
+.pyp{grid-area:pp;padding:12px 16px;gap:4px;border-left:4px solid var(--good);justify-content:center}
+.pclose{background:none;border:0;color:var(--muted);font-size:22px;line-height:1;width:36px;height:40px;flex-shrink:0}
+.pyp .top{gap:6px}
+.app.nopp{grid-template-areas:"h h h" "sp nv mu" "fu fu fu"}
+.app.nopp .pyp{display:none}
+@media (orientation:portrait){.app.nopp{grid-template-rows:auto minmax(0,1.05fr) minmax(0,1fr) auto;grid-template-areas:"h h" "sp mu" "nv nv" "fu fu"}}
+#ppShow{display:none}.app.nopp #ppShow{display:flex}
+.pyp{flex-direction:row;padding:0;gap:0}
+.pbody{flex:1;min-width:0;padding:12px 16px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.pcol{flex-shrink:0;width:46px;display:flex;align-items:center;justify-content:center;border:0;border-left:1px solid var(--line);background:#1a2027;color:var(--muted);font-size:26px;border-radius:0 17px 17px 0;cursor:pointer}
+.pcol:active{background:var(--accent);color:#04121f}
+.pshow{align-self:stretch;margin:-12px 4px -12px -18px;border-left:0;border-right:1px solid var(--line);border-radius:17px 0 0 17px}
+.pyp.warn{border-left-color:var(--warn)}.pyp.crit{border-left-color:var(--crit)}
+.pyp .label{white-space:nowrap}
+.pyp .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.citybtn{white-space:nowrap;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;background:none;border:1px solid var(--line);border-radius:999px;color:var(--text);font:600 14px var(--body);padding:4px 12px;min-height:34px}
+.citybtn::after{content:" ▾";color:var(--muted)}
+.pstate{text-wrap:balance;font-family:var(--display);font-size:clamp(24px,2.7vw,31px);font-weight:600;line-height:1.05;margin-top:2px}
+.pyp.warn .pstate{color:var(--warn)}.pyp.crit .pstate{color:var(--crit)}.pyp .pstate{color:var(--good)}
+.psub{font-size:clamp(14px,1.5vw,16px);color:var(--muted);line-height:1.3}
+#pNext{color:var(--text)}
+.psub.stale{color:var(--warn)}
+/* avisos */
+.chip.alert{border-color:var(--warn);color:var(--warn)}.chip.alert.crit{border-color:var(--crit);color:var(--crit)}
+dialog{max-height:88vh;overflow:auto}
+dialog h3{font-family:var(--display);font-size:19px;letter-spacing:.04em;margin:20px 0 2px;color:var(--text)}
+dialog select{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 10px;font-size:16px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.mrow{display:grid;grid-template-columns:1fr 96px auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.mrow input{min-height:42px}.mrow small{display:block;color:var(--muted);font-size:12px}
+.btn.sm{min-height:42px;padding:0 14px;font-size:14px}
+.btn.ghost{border-color:var(--line);color:var(--muted)}
+.aitem{border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:12px;padding:12px 14px;margin-top:12px}
+.aitem.crit{border-left-color:var(--crit)}
+.aitem b{font-size:17px}.aitem p{margin-top:4px}
+.aitem .row{margin-top:10px;justify-content:flex-start}
+.aitem .more{display:none;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}.aitem .more.on{display:flex}
+.aitem .more input,.aitem .more select{width:auto;flex:1;min-width:140px}
+#cdlg{width:min(620px,94vw)}
+.clist{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.clist button{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;background:#1a2027;border:1px solid var(--line);border-radius:12px;color:var(--text);font:600 16px var(--body);padding:10px 14px}
+.clist button span{color:var(--muted);font-weight:400;font-size:13px}
+.clist button[aria-current="true"] span{color:var(--accent)}
+.clist button[aria-current="true"]{border-color:var(--accent)}
+/* modo manejo: menos distracción, botones más grandes */
+body.driving .dest,body.driving .favs,body.driving #refuelBtn,body.driving #setBtn{display:none}
+body.driving .ctrl button{width:92px;height:92px}
+body.driving .gdist{font-size:36px}body.driving .gmsg{font-size:18px}
+/* modo noche: menos brillo */
+body.night{--bg:#050607;--panel:#0b0e11;--line:#1a1f25;--text:#b9c1c9;--muted:#6b7480;--accent:#2b7fc4;--good:#2aa27a;--warn:#c98c1a;--crit:#c94848}
+body.night .carbox img{filter:brightness(.7) drop-shadow(0 16px 12px rgba(0,0,0,.6))}
+body.night .speed{color:#cfd5db}
+body.night .ctrl button.play{color:#020a12}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="hello" aria-hidden="true"><div class="hi">Hola <span id="helloName">Alfonso</span></div><div class="sub">Chevrolet Orlando</div></div>
+<div class="app">
+  <header>
+    <b>CHEVROLET ORLANDO · 2013</b>
+    <span class="hr"><span id="net"><i class="dot ok" id="netDot"></i><span id="netTxt">En línea</span></span><span id="clock">--:--</span><span id="date"></span></span>
+    <span class="hr"><button class="chip alert" id="alertBtn" hidden>Avisos</button><button class="chip" id="modeBtn" aria-pressed="true">Modo demo</button><button class="chip" id="setBtn" aria-label="Ajustes">Ajustes</button></span>
+  </header>
+
+  <section class="card speedcard" aria-label="Velocidad">
+    <span class="label ctitle">Velocidad</span>
+    <div><div class="speed" id="speed">0</div><div class="unit">KM/H</div></div>
+    <div class="carbox" id="carbox">
+      <img id="carImg" alt="Chevrolet Orlando" src="cars/orlando-principal.webp" draggable="false">
+    </div>
+    <div class="trip"><div><strong id="tripKm">0.0</strong><span class="label">Viaje km</span></div><div><strong id="gpsState">Demo</strong><span class="label">Fuente</span></div></div>
+    <div class="obd" id="obdRow" hidden><div id="oRpm"><strong>--</strong><span class="label">RPM</span></div><div id="oTemp"><strong>--</strong><span class="label">Motor °C</span></div><div id="oVolt"><strong>--</strong><span class="label">Batería V</span></div><div id="oFuel" hidden><strong>--</strong><span class="label">Tanque %</span></div></div>
+  </section>
+
+  <section class="card nav" aria-label="Navegación">
+    <span class="label ctitle">Navegación</span>
+    <div class="map">
+      <canvas id="map"></canvas><div id="tmap" hidden></div>
+      <div class="guide" id="guide" hidden><div class="gman" id="gMan">↑</div><div class="gtxt"><div class="gdist" id="gDist"></div><div class="gmsg" id="gMsg"></div></div></div>
+      <div class="mapbtns" id="mapBtns" hidden><button id="mCenter" aria-label="Centrar en mi posición">◎</button><button id="mTraffic" aria-pressed="true">Tráfico</button></div>
+      <div class="note" id="mapNote">Pon tu clave de TomTom en Ajustes para ver el mapa y navegar aquí.</div>
+      <div class="results" id="results" hidden></div>
+    </div>
+    <div class="tripbar" id="tripBar" hidden><div><span class="label">Llegada</span> <strong id="tEta">--:--</strong> <span id="tSum"></span><div class="psub" id="tTraffic"></div></div><span class="hr"><button class="btn sm" id="tWaze">Waze</button><button class="btn sm" id="tGmaps">Google</button><button class="btn sm" id="tEnd">Terminar</button></span></div>
+    <div class="favs" id="favs"></div>
+    <div class="dest"><input id="destIn" type="search" placeholder="¿A dónde vamos?" autocomplete="off" enterkeyhint="search" aria-label="Destino"><button class="btn solid" id="goBtn">Buscar</button><button class="btn" id="favAdd" aria-label="Guardar destino favorito">★</button></div>
+  </section>
+
+  <section class="card music" aria-label="Música">
+    <div class="srcsw" role="tablist" aria-label="Fuente de música"><button id="srcSp" role="tab">Spotify</button><button id="srcRadio" role="tab">Radio</button></div>
+    <div class="art" id="art"><svg viewBox="0 0 24 24" fill="#8fc7ff"><path d="M9 3v11.6A3.5 3.5 0 1 0 11 18V8h7V3z"/></svg></div>
+    <div><div class="title" id="trackTitle">Sin conectar</div><div class="artist" id="trackArtist">Abre Ajustes para enlazar Spotify</div></div>
+    <div class="bar"><i id="prog"></i></div>
+    <div class="status" id="spStatus"></div>
+    <div class="plists" id="plists" aria-label="Listas recientes"></div>
+    <div class="plists" id="rlist" aria-label="Emisoras favoritas" hidden></div>
+    <div class="ctrl">
+      <button id="prev" aria-label="Canción anterior"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z"/></svg></button>
+      <button id="play" class="play" aria-label="Reproducir o pausar"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+      <button id="next" aria-label="Canción siguiente"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18V6l8.5 6z"/></svg></button>
+    </div>
+  </section>
+
+  <section class="card pyp" id="pyp" aria-label="Pico y placa">
+    <div class="pbody">
+    <div class="top"><span class="label">Pico y placa</span><span id="pDig" hidden></span><button class="citybtn" id="cityBtn">Villavicencio</button></div>
+    <div class="pstate" id="pState">Hoy puedes circular</div>
+    <div class="psub" id="pSub"></div>
+    <div class="psub" id="pNext"></div>
+    </div>
+    <button class="pcol" id="ppHide" aria-label="Ocultar pico y placa">←</button>
+  </section>
+
+  <section class="card fuel" aria-label="Combustible">
+    <button class="pcol pshow" id="ppShow" aria-label="Mostrar pico y placa">→</button>
+    <div class="gauge">
+      <div class="label">Gasolina · <span id="gal">0.0</span> de <span id="cap">16.9</span> gal</div>
+      <div class="track"><i id="fuelBar"></i></div>
+      <div class="ticks"><span>E</span><span>1/4</span><span>1/2</span><span>3/4</span><span>F</span></div>
+    </div>
+    <div class="stat"><strong id="range">0</strong><span>km de autonomía</span></div>
+    <div class="stat"><strong id="kmgal">0.0</strong><span>km por galón</span></div>
+    <div class="stat"><strong id="galkm">0.000</strong><span>galones por km</span></div>
+    <button class="btn" id="refuelBtn" aria-label="Registrar tanqueo">Registrar ⛽️</button>
+  </section>
+</div>
+
+<dialog id="dlg">
+  <h2>Registrar tanqueo</h2>
+  <label for="fKm">Kilómetros desde el tanqueo anterior</label>
+  <input id="fKm" type="number" inputmode="decimal" placeholder="420">
+  <label for="fGal">Galones que echaste</label>
+  <input id="fGal" type="number" inputmode="decimal" placeholder="12.1">
+  <div class="row"><button class="btn" id="fCancel" style="border-color:var(--line);color:var(--muted)">Cancelar</button><button class="btn solid" id="fSave">Guardar</button></div>
+</dialog>
+
+<dialog id="sdlg">
+  <h2>Ajustes</h2>
+  <h3>Carro</h3>
+  <div class="two">
+    <div><label for="plate">Último dígito de la placa</label><input id="plate" type="number" inputmode="numeric" min="0" max="9"></div>
+    <div><label for="tank">Tanque (galones)</label><input id="tank" type="number" inputmode="decimal"></div>
+  </div>
+  <label for="helloIn">Nombre para el saludo al abrir</label>
+  <input id="helloIn" type="text" autocomplete="off" placeholder="Alfonso">
+  <label for="mainCity">Ciudad principal para pico y placa</label>
+  <select id="mainCity"></select>
+  <label for="clock24">Formato de hora</label>
+  <select id="clock24"><option value="0">12 horas (1:20 p. m.)</option><option value="1">24 horas (13:20)</option></select>
+  <label for="nightMode">Modo noche</label>
+  <select id="nightMode"><option value="auto">Automático (6:00 p. m. a 6:00 a. m.)</option><option value="on">Siempre</option><option value="off">Nunca</option></select>
+
+  <div id="obdSet" hidden>
+  <h3>Escáner OBD</h3>
+  <p id="obdMsg">Conecta el escáner al carro, enciende el motor y toca Buscar.</p>
+  <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="btn" id="obdScan">Buscar escáner</button><button class="btn ghost" id="obdForget">Olvidar escáner</button></div>
+  <div class="obdlist" id="obdList"></div>
+  </div>
+
+  <h3>Documentos</h3>
+  <p>Te aviso desde dos días antes de que venzan.</p>
+  <div class="two">
+    <div><label for="soatD">SOAT vence</label><input id="soatD" type="date"></div>
+    <div><label for="rtmD">Técnico-mecánica vence</label><input id="rtmD" type="date"></div>
+  </div>
+
+  <h3>Mantenimiento</h3>
+  <p>Pon el kilometraje del odómetro. El tablero suma los km del GPS y te avisa 300 km antes de cada servicio. Corrígelo cuando quieras.</p>
+  <label for="odoIn">Kilometraje actual</label>
+  <input id="odoIn" type="number" inputmode="numeric" placeholder="125000">
+  <div id="mantList"></div>
+
+  <h3>Navegación TomTom</h3>
+  <p>Crea una cuenta gratis en developer.tomtom.com, copia la clave (API key) de tu panel y pégala aquí. El plan gratuito alcanza de sobra para uso personal.</p>
+  <label for="ttKey">Clave de TomTom</label>
+  <input id="ttKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+
+  <h3>Spotify</h3>
+  <p>Crea una app gratis en developer.spotify.com/dashboard (requiere cuenta Premium), copia su Client ID y registra esta dirección como Redirect URI:</p>
+  <code id="redir"></code>
+  <label for="cid">Client ID de Spotify</label>
+  <input id="cid" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="row"><button class="btn ghost" id="spOut">Desconectar</button><button class="btn" id="spIn">Conectar Spotify</button></div>
+
+  <h3>Respaldo</h3>
+  <p>Tus datos se guardan solo en este iPad. Si se borran los datos del navegador o reinstalas la app, se pierden. Guarda un respaldo y restáuralo cuando lo necesites. Incluye tu clave de TomTom: no lo compartas.</p>
+  <div class="row" style="justify-content:flex-start"><button class="btn" id="bkSave">Guardar archivo</button><button class="btn" id="bkCopy">Copiar código</button><button class="btn" id="bkLoad">Restaurar</button></div>
+  <input id="bkFile" type="file" accept=".json,application/json,text/plain" hidden>
+  <div id="bkPasteBox" hidden>
+    <label for="bkPaste">O pega aquí el código del respaldo</label>
+    <textarea id="bkPaste" rows="3" style="width:100%;border-radius:10px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:10px;font-size:14px;-webkit-user-select:text;user-select:text"></textarea>
+    <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="btn" id="bkFileBtn">Elegir archivo</button><button class="btn solid" id="bkApply">Restaurar este código</button></div>
+  </div>
+  <p id="bkMsg" style="margin-top:8px"></p>
+
+
+  <div class="row"><button class="btn ghost" id="sClose">Cerrar</button><button class="btn solid" id="sSave">Guardar</button></div>
+</dialog>
+
+<dialog id="rdlg">
+  <h2>Emisoras</h2>
+  <p>Busca por nombre, género (rock, salsa, vallenato) o ciudad. Toca ★ para dejarla en tus favoritas del panel.</p>
+  <div class="dest" style="margin-top:10px"><input id="rq" type="search" placeholder="Ej: rock, Tropicana, jazz" autocomplete="off" enterkeyhint="search" aria-label="Buscar emisora"><button class="btn solid" id="rGo">Buscar</button></div>
+  <p id="rMsg" style="margin-top:8px"></p>
+  <div class="rres" id="rRes"></div>
+  <h3>Tus favoritas</h3>
+  <div class="rres" id="rFav"></div>
+  <p style="margin-top:14px;font-size:12px">Directorio de emisoras: Radio Browser (radio-browser.info).</p>
+  <div class="row"><button class="btn ghost" id="rClose">Cerrar</button></div>
+</dialog>
+
+<dialog id="adlg">
+  <h2>Avisos del carro</h2>
+  <div id="aList"></div>
+  <div class="row"><button class="btn ghost" id="aClose">Cerrar todo por ahora</button></div>
+</dialog>
+
+<dialog id="cdlg">
+  <h2>Pico y placa en otra ciudad</h2>
+  <p>Es solo para consultar. Al reabrir el tablero vuelve a tu ciudad principal.</p>
+  <div class="clist" id="cList"></div>
+  <p id="cNote" style="margin-top:12px"></p>
+  <div class="row"><button class="btn ghost" id="cClose">Cerrar</button></div>
+</dialog>
+
+<script>
+(function(){
+  var $ = function(id){return document.getElementById(id);};
+  function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+  function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+  function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
+
+  /* ---------- app nativa (iPad): puente con Swift ---------- */
+  var NATIVE=!!(window.NATIVE&&window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.native);
+  function nativePost(o){ try{ window.webkit.messageHandlers.native.postMessage(o); }catch(e){} }
+
+  /* ---------- saludo al abrir ---------- */
+  (function(){
+    var n=(lsGet('helloName')||'Alfonso').trim()||'Alfonso', h=$('hello');
+    $('helloName').textContent=n; if(NATIVE) nativePost({cmd:'hello',name:n});
+    function out(){ h.classList.add('out'); setTimeout(function(){h.remove();},700); }
+    setTimeout(out, 1900); h.addEventListener('click', out);
+  })();
+
+  /* ---------- estado local (todo esto funciona sin internet) ---------- */
+  var TANK = parseFloat(lsGet('tank')) || 16.9;   // ~64 L; cámbialo en Ajustes
+  var S = {demo:true, speed:0, trip:0, fuel:parseFloat(lsGet('fuel'))||11.2, kmgal:parseFloat(lsGet('kmgal'))||35};
+  function saveCar(){lsSet('fuel',S.fuel);lsSet('kmgal',S.kmgal);}
+
+  function renderCar(){
+    $('speed').textContent = Math.round(S.speed);
+    $('tripKm').textContent = S.trip.toFixed(1);
+    var pct = Math.max(0,Math.min(1,S.fuel/TANK));
+    $('fuelBar').style.width = (pct*100)+'%';
+    $('fuelBar').style.background = pct<.15?'var(--crit)':pct<.3?'var(--warn)':'var(--good)';
+    $('gal').textContent = S.fuel.toFixed(1); $('cap').textContent = TANK.toFixed(1);
+    $('range').textContent = Math.round(S.fuel*S.kmgal);
+    $('kmgal').textContent = S.kmgal.toFixed(1);
+    $('galkm').textContent = (1/S.kmgal).toFixed(3);
+    $('modeBtn').setAttribute('aria-pressed', S.demo);
+    $('modeBtn').textContent = S.demo ? 'Modo demo' : 'GPS en vivo';
+    $('gpsState').textContent = (S.obdAt&&Date.now()-S.obdAt<4000) ? 'OBD' : S.demo ? 'Demo' : 'GPS';
+  }
+
+  var target = 40, tick = 0;
+  setInterval(function(){
+    var nw=new Date(), h24=lsGet('clock24')==='1', hh=nw.getHours(), mm=('0'+nw.getMinutes()).slice(-2);
+    $('clock').textContent = h24 ? ('0'+hh).slice(-2)+':'+mm : ((hh%12)||12)+':'+mm+(hh<12?' a. m.':' p. m.');
+    var MES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    $('date').textContent = nw.getDate()+' '+MES[nw.getMonth()]+' '+nw.getFullYear();
+    if (S.demo){
+      if (Math.random()<.12) target = [0,25,45,60,80][Math.floor(Math.random()*5)];
+      S.speed += (target-S.speed)*.25;
+    }
+    var km = S.speed/3600; S.trip += km; S.fuel = Math.max(0,S.fuel - km/S.kmgal);
+    if (++tick % 15 === 0) saveCar();
+    renderCar(); renderProgress(); drawMap();
+  },1000);
+
+  /* GPS: usa satélites, no necesita datos del operador */
+  var watch=null;
+  $('modeBtn').onclick=function(){
+    if(S.demo){
+      if(!navigator.geolocation){return;}
+      try{ watch = navigator.geolocation.watchPosition(function(p){
+        S.demo=false; if(!(S.obdAt&&Date.now()-S.obdAt<4000)) S.speed=Math.max(0,(p.coords.speed||0)*3.6); S.lat=p.coords.latitude; S.lon=p.coords.longitude; S.acc=p.coords.accuracy; if(p.coords.heading!=null&&!isNaN(p.coords.heading)&&S.speed>3)S.heading=p.coords.heading; renderCar(); if(window.navOnFix)window.navOnFix();
+      },function(){S.demo=true;$('gpsState').textContent='Sin permiso';},{enableHighAccuracy:true,maximumAge:1000}); }catch(e){}
+    } else { if(watch!==null){navigator.geolocation.clearWatch(watch);} S.demo=true; renderCar(); }
+  };
+
+  /* Tanqueo */
+  var dlg=$('dlg');
+  $('refuelBtn').onclick=function(){ try{dlg.showModal();}catch(e){dlg.setAttribute('open','');} };
+  $('fCancel').onclick=function(){dlg.close();};
+  $('fSave').onclick=function(){
+    var km=parseFloat($('fKm').value), gal=parseFloat($('fGal').value);
+    if(km>0 && gal>0){ S.kmgal=km/gal; S.fuel=TANK; S.trip=0; saveCar(); }
+    dlg.close(); renderCar();
+  };
+
+  /* ---------- navegación por enlaces profundos ---------- */
+  var favs=[]; try{favs=JSON.parse(lsGet('favs')||'[]');}catch(e){}
+  function drawFavs(){
+    var box=$('favs'); box.innerHTML='';
+    favs.forEach(function(f,i){
+      var d=document.createElement('div'); d.className='fav';
+      var b=document.createElement('button'); b.textContent=f; b.onclick=function(){$('destIn').value=f; if(window.navSearch)window.navSearch();};
+      var x=document.createElement('button'); x.className='x'; x.textContent='×'; x.setAttribute('aria-label','Quitar '+f);
+      x.onclick=function(){favs.splice(i,1);lsSet('favs',JSON.stringify(favs));drawFavs();};
+      d.appendChild(b); d.appendChild(x); box.appendChild(d);
+    });
+  }
+  $('favAdd').onclick=function(){
+    var v=$('destIn').value.trim(); if(!v||favs.indexOf(v)>-1||favs.length>=5){return;}
+    favs.push(v); lsSet('favs',JSON.stringify(favs)); drawFavs();
+  };
+  drawFavs();
+
+  /* ---------- Spotify (Web API, PKCE sin servidor) ---------- */
+  var REDIR = location.origin + location.pathname;
+  var SP = {online:true, track:null, playing:false, prog:0, dur:0, at:0};
+
+  function rand(n){var a=new Uint8Array(n),c='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~',s='';crypto.getRandomValues(a);for(var i=0;i<n;i++)s+=c[a[i]%c.length];return s;}
+  function b64(buf){var s='',a=new Uint8Array(buf);for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+
+  async function spLogin(){
+    var cid=$('cid').value.trim(); if(!cid){$('cid').focus();return;}
+    lsSet('sp_cid',cid);
+    var v=rand(64); lsSet('sp_v',v);
+    var ch=b64(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v)));
+    location.href='https://accounts.spotify.com/authorize?'+new URLSearchParams({
+      client_id:cid,response_type:'code',redirect_uri:REDIR,code_challenge_method:'S256',code_challenge:ch,
+      scope:'user-read-playback-state user-modify-playback-state user-read-recently-played playlist-read-private'}).toString();
+  }
+  async function tokenCall(params){
+    var r=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(params).toString()});
+    if(!r.ok) throw new Error('token '+r.status);
+    var j=await r.json();
+    lsSet('sp_at',j.access_token); lsSet('sp_exp',String(Date.now()+j.expires_in*1000-60000));
+    if(j.refresh_token) lsSet('sp_rt',j.refresh_token);
+  }
+  async function spToken(){
+    if(!lsGet('sp_rt')&&!lsGet('sp_at')) return null;
+    if(Date.now() < parseFloat(lsGet('sp_exp')||0)) return lsGet('sp_at');
+    await tokenCall({grant_type:'refresh_token',refresh_token:lsGet('sp_rt'),client_id:lsGet('sp_cid')});
+    return lsGet('sp_at');
+  }
+  async function api(method,path){
+    var t=await spToken(); if(!t) return null;
+    return fetch('https://api.spotify.com/v1'+path,{method:method,headers:{Authorization:'Bearer '+t}});
+  }
+  // Regreso desde Spotify con ?code=...
+  (async function(){
+    var p=new URLSearchParams(location.search), code=p.get('code');
+    if(!code) return;
+    try{
+      await tokenCall({grant_type:'authorization_code',code:code,redirect_uri:REDIR,client_id:lsGet('sp_cid'),code_verifier:lsGet('sp_v')});
+    }catch(e){ setStatus('No se pudo enlazar. Revisa el Client ID y el Redirect URI.'); }
+    history.replaceState(null,'',location.pathname);
+    poll(); if(window.loadPlSoon)setTimeout(window.loadPlSoon,1200);
+  })();
+
+  function setStatus(t){$('spStatus').textContent=t;}
+  function renderMusic(){
+    if(window.MUSIC_SRC==='radio') return;
+    var linked = !!lsGet('sp_rt');
+    if(!linked){ $('trackTitle').textContent='Sin conectar'; $('trackArtist').textContent='Abre Ajustes para enlazar Spotify'; return; }
+    if(!SP.track){ $('trackTitle').textContent='Nada sonando'; $('trackArtist').textContent='Dale play en la app de Spotify'; }
+    else { $('trackTitle').textContent=SP.track.name; $('trackArtist').textContent=SP.track.artists.map(function(a){return a.name;}).join(', ');
+      var im=SP.track.album&&SP.track.album.images&&SP.track.album.images[0];
+      var art=$('art'), old=art.querySelector('img');
+      if(im){ if(!old){old=document.createElement('img');old.alt='';old.onerror=function(){old.remove();};art.appendChild(old);} if(old.src!==im.url) old.src=im.url; }
+      else if(old){old.remove();} }
+    $('playIcon').innerHTML = SP.playing ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    setStatus(SP.online ? '' : 'Sin señal: la canción sigue sonando. Para cambiarla usa el Centro de control del iPad.');
+  }
+  function renderProgress(){
+    if(window.MUSIC_SRC==='radio') return;
+    if(!SP.track||!SP.dur){$('prog').style.width='0';return;}
+    var p=SP.prog+(SP.playing?Date.now()-SP.at:0);
+    $('prog').style.width=Math.min(100,p/SP.dur*100)+'%';
+  }
+  async function poll(){
+    if(!lsGet('sp_rt')){renderMusic();return;}
+    try{
+      var r=await api('GET','/me/player');
+      SP.online=true;
+      if(!r||r.status===204){SP.track=null;SP.playing=false;}
+      else if(r.status===401||r.status===403){setStatus('Sesión vencida o sin permiso. Vuelve a enlazar en Ajustes.');}
+      else if(r.ok){ var j=await r.json(); SP.track=j.item||null; SP.playing=!!j.is_playing; SP.prog=j.progress_ms||0; SP.dur=SP.track?SP.track.duration_ms:0; SP.at=Date.now(); SP.ctx=(j.context&&j.context.uri)||''; markPl(); }
+    }catch(e){ SP.online=false; }   // sin señal: se conserva la última canción conocida
+    renderMusic();
+  }
+  async function cmd(method,path){
+    if(!lsGet('sp_rt')){try{$('sdlg').showModal();}catch(e){} return;}
+    try{ var r=await api(method,path); SP.online=true; if(r&&r.status===404) setStatus('Abre la app de Spotify en este iPad y dale play una vez.'); }
+    catch(e){ SP.online=false; }
+    setTimeout(poll,500); renderMusic();
+  }
+  $('next').onclick=function(){ if(window.MUSIC_SRC==='radio') return window.radioStep(1); cmd('POST','/me/player/next');};
+  $('prev').onclick=function(){ if(window.MUSIC_SRC==='radio') return window.radioStep(-1); cmd('POST','/me/player/previous');};
+  $('play').onclick=function(){ if(window.MUSIC_SRC==='radio') return window.radioToggle(); cmd('PUT',SP.playing?'/me/player/pause':'/me/player/play'); SP.playing=!SP.playing; SP.at=Date.now(); renderMusic();};
+  window.spPauseIfPlaying=function(){ if(SP.playing&&lsGet('sp_rt')){ SP.playing=false; cmd('PUT','/me/player/pause'); } };
+  setInterval(poll,3000);
+
+  /* Listas de reproducción usadas recientemente: solo las que caben, para no llenar el panel */
+  var PL=[]; try{PL=JSON.parse(lsGet('sp_pl')||'[]');}catch(e){}
+  function markPl(){ Array.prototype.forEach.call($('plists').children,function(b){b.classList.toggle('on',b.dataset.uri===SP.ctx);}); }
+  function fitPl(){
+    var box=$('plists'), h=box.clientHeight, n=Math.max(0,Math.min(3,PL.length,Math.floor((h+6)/52)));
+    Array.prototype.forEach.call(box.children,function(b,i){b.hidden=i>=n;});
+  }
+  function drawPl(){
+    var box=$('plists'); box.innerHTML='';
+    if(!lsGet('sp_rt')) return;
+    PL.forEach(function(p){
+      var b=document.createElement('button'); b.className='pl'; b.dataset.uri=p.uri; b.setAttribute('aria-label','Reproducir '+p.name);
+      if(p.img){var im=document.createElement('img');im.alt='';im.src=p.img;im.onerror=function(){im.replaceWith(Object.assign(document.createElement('i'),{className:'ph'}));};b.appendChild(im);}
+      else { var ph=document.createElement('i'); ph.className='ph'; b.appendChild(ph); }
+      var t=document.createElement('span'); t.textContent=p.name; b.appendChild(t);
+      b.onclick=async function(){
+        try{ var tk=await spToken(); var r=await fetch('https://api.spotify.com/v1/me/player/play',{method:'PUT',headers:{Authorization:'Bearer '+tk,'Content-Type':'application/json'},body:JSON.stringify({context_uri:p.uri})});
+          if(r.status===404) setStatus('Abre la app de Spotify en este iPad y dale play una vez.'); else {SP.ctx=p.uri; markPl();}
+        }catch(e){ setStatus('Sin señal: no puedo cambiar de lista ahora.'); }
+        setTimeout(poll,700);
+      };
+      box.appendChild(b);
+    });
+    document.querySelector('.music').classList.toggle('haspl',PL.length>0);
+    markPl(); setTimeout(fitPl,50);
+  }
+  async function loadPl(){
+    if(!lsGet('sp_rt')||!navigator.onLine) return;
+    try{
+      var r=await api('GET','/me/player/recently-played?limit=50');
+      if(!r) return;
+      if(r.status===401||r.status===403){ setStatus('Vuelve a tocar "Conectar Spotify" en Ajustes para ver tus listas recientes.'); return; }
+      var j=await r.json(), seen={}, ids=[];
+      (j.items||[]).forEach(function(it){ var c=it.context; if(c&&c.type==='playlist'&&!seen[c.uri]){seen[c.uri]=1;ids.push(c.uri);} });
+      var out=[];
+      for(var i=0;i<ids.length&&out.length<3;i++){
+        var id=ids[i].split(':').pop();
+        try{ var pr=await api('GET','/playlists/'+id+'?fields=name,uri,images');
+          if(pr&&pr.ok){ var pj=await pr.json(); out.push({uri:pj.uri||ids[i],name:pj.name,img:(pj.images&&pj.images.length)?pj.images[pj.images.length-1].url:''}); } }catch(e){}
+      }
+      if(out.length<3){   // completa con tus propias listas si las recientes no alcanzan
+        var mr=await api('GET','/me/playlists?limit=10');
+        if(mr&&mr.ok){ var mj=await mr.json(); (mj.items||[]).forEach(function(p){ if(out.length<3&&!out.some(function(o){return o.uri===p.uri;})) out.push({uri:p.uri,name:p.name,img:(p.images&&p.images.length)?p.images[p.images.length-1].url:''}); }); }
+      }
+      PL=out; lsSet('sp_pl',JSON.stringify(PL)); drawPl();
+    }catch(e){}
+  }
+  /* ======================================================
+     Radio por internet: favoritas (Big R Radio) y buscador con Radio Browser
+     ====================================================== */
+  var RADIO_DEFAULT=[
+    {id:'bigr-90salt',name:'90s Alternative Rock',url:'https://bigrradio.cdnstream1.com/5187_128',tag:'Big R Radio'},
+    {id:'bigr-80sfm',name:'80s FM',url:'https://bigrradio.cdnstream1.com/5184_128',tag:'Big R Radio'},
+    {id:'bigr-warm',name:'101.6 Adult Warm Hits',url:'https://bigrradio.cdnstream1.com/5177_128',tag:'Big R Radio'},
+    {id:'bigr-energy98',name:'Energy 98',url:'https://listen.181fm.com/181-energy98_128k.mp3',tag:'181.FM'},
+    {id:'bigr-latjazz',name:'Latin Jazz',url:'https://bigrradio.cdnstream1.com/5224_128',tag:'Big R Radio'},
+    {id:'bigr-reggaeton',name:'Latin Reggaeton',url:'https://bigrradio.cdnstream1.com/5228_128',tag:'Big R Radio'},
+    {id:'bigr-lathiphop',name:'Latin Hip-Hop',url:'https://bigrradio.cdnstream1.com/5223_128',tag:'Big R Radio'},
+    {id:'bigr-regmex',name:'Regional Mexican',url:'https://bigrradio.cdnstream1.com/5229_128',tag:'Big R Radio'},
+    {id:'bigr-salsa',name:'Latin Salsa',url:'https://bigrradio.cdnstream1.com/5231_128',tag:'Big R Radio'},
+    {id:'bigr-tropical',name:'Latin Tropical',url:'https://bigrradio.cdnstream1.com/5233_128',tag:'Big R Radio'}
+  ];
+  var RFAV; try{RFAV=JSON.parse(lsGet('radio_favs')||'null');}catch(e){}
+  if(!Array.isArray(RFAV)||!RFAV.length) RFAV=RADIO_DEFAULT.slice();
+  else if(lsGet('radio_v')!=='3'){   // nueva lista de Big R; se conservan las que agregaste con el buscador
+    RFAV=RADIO_DEFAULT.concat(RFAV.filter(function(x){return x.id.indexOf('bigr-')!==0;}));
+  }
+  lsSet('radio_v','3');
+  function saveFav(){lsSet('radio_favs',JSON.stringify(RFAV));}
+  saveFav();
+  function NativeAudio(){   // en la app, la radio la toca iOS: sigue con pantalla bloqueada o Waze encima
+    var self=this, L={}; this.src=''; this.paused=true; this.preload='none'; this._title='';
+    this.addEventListener=function(t,f){(L[t]=L[t]||[]).push(f);};
+    this.play=function(){ self.paused=false;
+      var list=RFAV.filter(function(x){return x.url;}).map(function(x){return {id:x.id,name:x.name.replace(/^Big R\s*·\s*/,''),url:x.url};});
+      var idx=R_CUR?list.findIndex(function(x){return x.id===R_CUR.id;}):0;
+      nativePost({cmd:'radio.play',url:self.src,title:self._title,list:list,index:Math.max(0,idx)}); return Promise.resolve(); };
+    this.pause=function(){ self.paused=true; nativePost({cmd:'radio.stop'}); };
+    this.removeAttribute=function(){ self.src=''; }; this.load=function(){};
+    window.__nativeAudioEvent=function(t){ (L[t]||[]).forEach(function(f){try{f();}catch(e){}}); };
+  }
+  var audio=NATIVE?new NativeAudio():new Audio(); audio.preload='none';
+  var R_CUR=null, R_STATE='stop';   // stop | loading | play | error
+  window.MUSIC_SRC=lsGet('musicSrc')==='radio'?'radio':'sp';
+
+  function initials(n){return n.replace(/^Big R\s*·\s*/,'').split(/\s+/).slice(0,2).map(function(w){return w.charAt(0);}).join('').toUpperCase();}
+  function artEl(st){
+    if(st.img){var im=document.createElement('img');im.alt='';im.src=st.img;im.onerror=function(){im.replaceWith(phEl(st));};return im;}
+    return phEl(st);
+  }
+  function phEl(st){var i=document.createElement('i');i.className='ph txt';i.textContent=initials(st.name);return i;}
+
+  // ---- Carátulas animadas de la radio: 6 diseños que se repiten; laten al tempo del género ----
+  var VIS=(function(){
+    var cv=document.createElement('canvas'); cv.id='rvis'; cv.setAttribute('aria-hidden','true');
+    var ctx=cv.getContext('2d'), raf=0, last=0, simT=Math.random()*50, design=0, bpm=110, playing=false, W=0, H=0, TAU=Math.PI*2;
+    function size(){ var r=cv.getBoundingClientRect(), d=Math.min(2,window.devicePixelRatio||1), w=Math.round(r.width*d), h=Math.round(r.height*d);
+      if(w&&h&&(w!==cv.width||h!==cv.height)){cv.width=w;cv.height=h;} W=cv.width; H=cv.height; }
+    function bg(c){ ctx.globalCompositeOperation='source-over'; ctx.fillStyle=c; ctx.fillRect(0,0,W,H); }
+    function hsl(h,s,l,a){ return 'hsla('+h+','+s+'%,'+l+'%,'+(a==null?1:a)+')'; }
+    function rr(x,y,w,h,r){ ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x,y,w,h,r); else ctx.rect(x,y,w,h); }
+    var D=[
+      function tunel(t,b){ bg('#0b0414'); var cx=W/2,cy=H/2,M=Math.hypot(W,H)/2,n=14; ctx.lineWidth=H*.04*(1+b*.9);
+        for(var i=0;i<n;i++){ var z=((i/n)+t*.16)%1, s=Math.pow(z,2.2)*M*1.25;
+          ctx.save(); ctx.translate(cx,cy); ctx.rotate(Math.sin(t*.35+z*3)*.35);
+          ctx.strokeStyle=hsl(275+45*Math.sin(t*.5+i*.7),90,45+28*b,.2+.8*z); rr(-s*1.5,-s,s*3,s*2,s*.35); ctx.stroke(); ctx.restore(); } },
+      function liquido(t,b){ bg('#12001f'); ctx.globalCompositeOperation='lighter';
+        var C=[[255,40,180],[70,110,255],[255,130,40],[150,60,255],[30,210,200]];
+        for(var i=0;i<5;i++){ var x=W*(.5+.45*Math.sin(t*.33*(1+i*.25)+i*1.7)), y=H*(.5+.5*Math.cos(t*.27*(1+i*.3)+i)), r=H*(.8+.3*Math.sin(t*.8+i))*(1+b*.35);
+          var g=ctx.createRadialGradient(x,y,0,x,y,r), c=C[i].join(','); g.addColorStop(0,'rgba('+c+',.8)'); g.addColorStop(1,'rgba('+c+',0)');
+          ctx.fillStyle=g; ctx.fillRect(0,0,W,H); } },
+      function ondas(t,b){ bg('#05020d'); ctx.globalCompositeOperation='lighter'; ctx.lineWidth=H*.03; ctx.lineCap='round';
+        for(var k=0;k<9;k++){ ctx.strokeStyle=hsl(185+k*16,95,55,.75); ctx.beginPath();
+          var A=H*.3*(.45+.55*Math.sin(t*.7+k))*(.65+.7*b), off=(k-4)*H*.05, f=1.3+k*.18;
+          for(var x=0;x<=W;x+=W/70){ var y=H/2+off+Math.sin(x/W*TAU*f+t*(1.1+k*.15)+k)*A; x?ctx.lineTo(x,y):ctx.moveTo(x,y); } ctx.stroke(); } },
+      function caleidoscopio(t,b){ bg('#0a0612'); var cx=W/2,cy=H/2,R=Math.hypot(W,H)/2,segs=12;
+        for(var s=0;s<segs;s++){ ctx.save(); ctx.translate(cx,cy); ctx.rotate(s*TAU/segs+t*.18); if(s%2) ctx.scale(1,-1);
+          for(var j=0;j<8;j++){ var d=((j/8)+t*.12)%1*R, z=H*.22*(1+b*.6)*(.4+d/R);
+            ctx.fillStyle=hsl((t*25+j*55+(s%2)*25)%360,85,55,.85); ctx.beginPath(); ctx.moveTo(d,0); ctx.lineTo(d+z,z*.45); ctx.lineTo(d+z*.2,z); ctx.closePath(); ctx.fill(); }
+          ctx.restore(); } },
+      function espiral(t,b){ bg('#0c0318'); var cx=W/2,cy=H/2,arms=6;
+        for(var a=0;a<arms;a++) for(var k=1;k<46;k++){ var ang=k*.24+a*TAU/arms-t*1.1, rad=k*H*.03;
+          var x=cx+Math.cos(ang)*rad*1.6, y=cy+Math.sin(ang)*rad; if(x<-20||x>W+20||y<-20||y>H+20) continue;
+          ctx.fillStyle=hsl((300-k*5+a*12+t*20)%360,90,58,.9); ctx.beginPath(); ctx.arc(x,y,Math.min(k,24)*H*.0035*(1+b*.7),0,TAU); ctx.fill(); } },
+      function plasma(t,b){ bg('#08030f'); var rows=7, cell=H/rows, cols=Math.ceil(W/cell);
+        for(var i=0;i<cols;i++) for(var j=0;j<rows;j++){
+          var v=(Math.sin(i*.45+t)+Math.sin(j*.6+t*1.3)+Math.sin((i+j)*.3+t*.7)+Math.sin(Math.sqrt(i*i+j*j)*.45-t*1.6))/4;
+          ctx.fillStyle=hsl(285+v*70,90,55+v*10,.9); ctx.beginPath();
+          ctx.arc(i*cell+cell/2,j*cell+cell/2,cell*.47*(.3+.7*(v+1)/2)*(1+b*.3),0,TAU); ctx.fill(); } }
+    ];
+    function draw(dt){ size(); if(!W||!H) return; simT+=dt*(playing?1:0);
+      var p=(simT*bpm/60)%1, b=playing?Math.exp(-p*5):0;
+      try{ D[design](simT,b); }catch(e){}
+      ctx.globalCompositeOperation='source-over';
+      if(!playing){ ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(0,0,W,H); } }
+    function loop(now){ raf=0;
+      if(!playing||document.hidden||window.MUSIC_SRC!=='radio'||!cv.isConnected) return;
+      raf=requestAnimationFrame(loop); if(!last){ last=now; draw(0); return; } var dt=(now-last)/1000; if(dt<.03) return; last=now; draw(Math.min(dt,.1)); }
+    function set(d,tempo,on){ design=d%D.length; bpm=tempo||110; var was=playing; playing=!!on;
+      if(!cv.isConnected){ var a=document.getElementById('art'); if(a) a.insertBefore(cv,a.firstChild); }
+      if(playing){ if(!raf){ last=0; raf=requestAnimationFrame(loop);} } else { draw(0); }
+      if(!was&&!playing) requestAnimationFrame(function(){draw(0);}); }
+    document.addEventListener('visibilitychange',function(){ if(!document.hidden&&playing&&!raf){ last=0; raf=requestAnimationFrame(loop);} });
+    window.addEventListener('resize',function(){ setTimeout(function(){ if(!playing) draw(0); },150); });
+    return {set:set};
+  })();
+  var R_BPM={'bigr-90salt':112,'bigr-80sfm':120,'bigr-warm':104,'bigr-energy98':128,'bigr-latjazz':100,'bigr-reggaeton':94,'bigr-lathiphop':92,'bigr-regmex':102,'bigr-salsa':96,'bigr-tropical':108};
+  function renderRadio(){
+    if(window.MUSIC_SRC!=='radio') return;
+    var st=R_CUR||RFAV[0];
+    $('trackTitle').textContent=st?st.name:'Sin emisoras';
+    $('trackArtist').textContent= R_STATE==='loading'?'Conectando…': R_STATE==='play'?'En vivo'+(st&&st.tag?' · '+st.tag:''): R_STATE==='error'?'No se pudo reproducir esta emisora':'Toca play para escuchar';
+    var art=$('art'), old=art.querySelector('img'); if(old) old.remove();
+    if(st&&st.img){var im=document.createElement('img');im.alt='';im.onerror=function(){im.remove();};im.src=st.img;art.appendChild(im);}
+    $('playIcon').innerHTML = (R_STATE==='play'||R_STATE==='loading') ? '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    setStatus(!navigator.onLine?'Sin señal: la radio necesita internet.': R_STATE==='error'?'Prueba otra emisora o revisa la conexión.':'');
+    Array.prototype.forEach.call($('rlist').children,function(b){b.classList.toggle('on',!!R_CUR&&b.dataset.id===R_CUR.id);});
+    if(st&&!st.img){ var a2=$('art'); a2.dataset.ini=initials(st.name.replace(/^Big R\s*·\s*/,'')); }
+    if(st){ var di=RFAV.findIndex(function(x){return x.id===st.id;}); VIS.set(di<0?0:di, R_BPM[st.id]||112, R_STATE==='play'||R_STATE==='loading'); }
+  }
+  function drawRlist(){
+    var box=$('rlist'); box.innerHTML='';
+    RFAV.forEach(function(st){
+      var b=document.createElement('button'); b.className='rchip'; b.dataset.id=st.id; b.setAttribute('aria-label','Escuchar '+st.name);
+      b.textContent=st.name.replace(/^Big R\s*·\s*/,''); b.onclick=function(){radioPlay(st);}; box.appendChild(b);
+    });
+    var add=document.createElement('button'); add.className='rchip add'; add.textContent='＋ Buscar'; add.onclick=openRadioSearch; box.appendChild(add);
+    renderRadio(); var on=box.querySelector('.on'); if(on&&on.scrollIntoView) try{on.scrollIntoView({block:'nearest'});}catch(e){}
+  }
+  function fitRlist(){}
+  function setMediaSession(st){
+    if(!('mediaSession' in navigator)) return;
+    try{
+      navigator.mediaSession.metadata=new MediaMetadata({title:st.name,artist:'Radio en vivo',album:'Tablero Orlando',artwork:st.img?[{src:st.img,sizes:'256x256'}]:[]});
+      navigator.mediaSession.setActionHandler('play',function(){radioToggle(true);});
+      navigator.mediaSession.setActionHandler('pause',function(){radioStop();});
+      navigator.mediaSession.setActionHandler('nexttrack',function(){radioStep(1);});
+      navigator.mediaSession.setActionHandler('previoustrack',function(){radioStep(-1);});
+    }catch(e){}
+  }
+  function resolveSt(st){
+    if(st.url) return Promise.resolve(st);
+    return rbFetch('/json/stations/search?name='+encodeURIComponent(st.q||st.name)+'&hidebroken=true&order=clickcount&reverse=true&limit=15')
+      .then(function(a){
+        var x=a.filter(function(y){return /big\s*-?\s*r/i.test(y.name);})[0];
+        if(!x) throw new Error('no encontrada');
+        st.url=(x.url_resolved||x.url).replace(/^http:\/\//,'https://'); st.uuid=x.stationuuid; saveFav(); return st;
+      });
+  }
+  function radioPlay(st){
+    if(!st) return;
+    if(window.spPauseIfPlaying) window.spPauseIfPlaying();
+    R_CUR=st; R_STATE='loading'; renderRadio();
+    if(!st.url){ resolveSt(st).then(function(){ if(R_CUR===st) radioPlay(st); }).catch(function(){ if(R_CUR===st){R_STATE='error';renderRadio();} }); return; }
+    audio.src=st.url; audio._title=st.name.replace(/^Big R\s*·\s*/,'');
+    var p=audio.play(); if(p&&p.catch) p.catch(function(){ R_STATE='error'; renderRadio(); });
+    setMediaSession(st);
+    if(st.uuid){ try{ rbFetch('/json/url/'+st.uuid).catch(function(){}); }catch(e){} }   // cuenta la escucha en Radio Browser
+  }
+  function radioStop(){ audio.pause(); audio.removeAttribute('src'); try{audio.load();}catch(e){} R_STATE='stop'; renderRadio(); }
+  function radioToggle(forcePlay){ if(!forcePlay && (R_STATE==='play'||R_STATE==='loading')) radioStop(); else radioPlay(R_CUR||RFAV[0]); }
+  function radioStep(d){
+    if(!RFAV.length) return; var i=R_CUR?RFAV.findIndex(function(x){return x.id===R_CUR.id;}):-1;
+    radioPlay(RFAV[(i+d+RFAV.length)%RFAV.length]);
+  }
+  window.radioStep=radioStep; window.radioToggle=radioToggle; window.__radioStop=function(){ if(R_STATE!=='stop') radioStop(); };
+  // cambios hechos desde la pantalla bloqueada (app)
+  window.__nativeStation=function(id){ var st=RFAV.filter(function(x){return x.id===id;})[0]; if(st){ R_CUR=st; if(R_STATE==='stop'||R_STATE==='error') R_STATE='loading'; renderRadio(); drawRlist(); } };
+  window.__nativeRadioStopped=function(){ R_STATE='stop'; renderRadio(); };
+  audio.addEventListener('playing',function(){R_STATE='play';renderRadio();});
+  audio.addEventListener('waiting',function(){ if(R_STATE!=='stop'){R_STATE='loading';renderRadio();} });
+  audio.addEventListener('error',function(){ if(R_STATE!=='stop'){R_STATE='error';renderRadio();} });
+
+  function setSource(src){
+    window.MUSIC_SRC=src; lsSet('musicSrc',src);
+    $('srcSp').setAttribute('aria-selected',src==='sp'); $('srcRadio').setAttribute('aria-selected',src==='radio');
+    document.querySelector('.music').classList.toggle('radio',src==='radio');
+    $('rlist').hidden=src!=='radio';
+    if(src==='radio'){ drawRlist(); }
+    else { if(R_STATE!=='stop') radioStop(); var old=$('art').querySelector('img'); if(old) old.remove(); renderMusic(); poll(); }
+  }
+  $('srcSp').onclick=function(){setSource('sp');};
+  $('srcRadio').onclick=function(){setSource('radio');};
+
+  /* ---- buscador con Radio Browser (gratis, sin clave) ---- */
+  var RB=['de1','nl1','at1'];
+  function rbFetch(path){
+    var i=0;
+    function tryNext(){
+      if(i>=RB.length) return Promise.reject(new Error('sin servidor'));
+      var host='https://'+RB[i++]+'.api.radio-browser.info';
+      return fetch(host+path).then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); }).catch(tryNext);
+    }
+    return tryNext();
+  }
+  function stFromRB(x){
+    var u=(x.url_resolved||x.url||'').replace(/^http:\/\//,'https://');
+    return {id:'rb-'+x.stationuuid,uuid:x.stationuuid,name:x.name.trim(),url:u,img:/^https:/.test(x.favicon||'')?x.favicon:'',
+      tag:[x.countrycode,(x.tags||'').split(',')[0],x.bitrate?x.bitrate+' kbps':''].filter(Boolean).join(' · ')};
+  }
+  function isFav(id){return RFAV.some(function(x){return x.id===id;});}
+  function rowEl(st){
+    var r=document.createElement('div'); r.className='rrow'; r.appendChild(artEl(st));
+    var t=document.createElement('div'); t.className='rt'; var b=document.createElement('b'); b.textContent=st.name; var sm=document.createElement('small'); sm.textContent=st.tag||''; t.appendChild(b); t.appendChild(sm); r.appendChild(t);
+    var pl=document.createElement('button'); pl.textContent='▶'; pl.setAttribute('aria-label','Escuchar '+st.name);
+    pl.onclick=function(){ if(window.MUSIC_SRC!=='radio') setSource('radio'); radioPlay(st); };
+    var fv=document.createElement('button'); fv.textContent='★'; fv.className=isFav(st.id)?'on':''; fv.setAttribute('aria-label',(isFav(st.id)?'Quitar de':'Agregar a')+' favoritas');
+    fv.onclick=function(){
+      if(isFav(st.id)) RFAV=RFAV.filter(function(x){return x.id!==st.id;}); else RFAV.push(st);
+      if(!RFAV.length) RFAV=RADIO_DEFAULT.slice();
+      saveFav(); drawRFavs(); drawRlist(); fv.className=isFav(st.id)?'on':'';
+    };
+    r.appendChild(pl); r.appendChild(fv); return r;
+  }
+  function drawRFavs(){ var box=$('rFav'); box.innerHTML=''; RFAV.forEach(function(st){box.appendChild(rowEl(st));}); }
+  function radioSearch(){
+    var q=$('rq').value.trim(); if(!q){$('rq').focus();return;}
+    if(!navigator.onLine){$('rMsg').textContent='Sin internet no se pueden buscar emisoras.';return;}
+    $('rMsg').textContent='Buscando…'; $('rRes').innerHTML='';
+    var qs='&hidebroken=true&order=clickcount&reverse=true&limit=25&is_https=true';
+    rbFetch('/json/stations/search?name='+encodeURIComponent(q)+qs)
+      .then(function(a){ return a.length?a:rbFetch('/json/stations/search?tag='+encodeURIComponent(q.toLowerCase())+qs); })
+      .then(function(a){
+        var seen={}; a=a.filter(function(x){ var k=x.name.trim().toLowerCase(); if(seen[k]) return false; seen[k]=1; return true; });
+        $('rMsg').textContent=a.length?'':'No encontré emisoras con ese nombre o género.';
+        a.forEach(function(x){ $('rRes').appendChild(rowEl(stFromRB(x))); });
+      })
+      .catch(function(){ $('rMsg').textContent='No se pudo conectar al directorio de emisoras. Intenta de nuevo.'; });
+  }
+  function openRadioSearch(){ drawRFavs(); $('rMsg').textContent=''; openDlg($('rdlg')); setTimeout(function(){$('rq').focus();},200); }
+  $('rGo').onclick=radioSearch;
+  $('rq').addEventListener('keydown',function(e){ if(e.key==='Enter'){e.preventDefault();$('rq').blur();radioSearch();} });
+  $('rClose').onclick=function(){$('rdlg').close();};
+  window.addEventListener('resize',function(){ if(window.MUSIC_SRC==='radio') setTimeout(fitRlist,120); });
+  if(window.ResizeObserver){ try{ new ResizeObserver(function(){ if(window.MUSIC_SRC==='radio') fitRlist(); }).observe($('rlist')); }catch(e){} }
+  window.addEventListener('online',renderRadio); window.addEventListener('offline',renderRadio);
+  setTimeout(function(){ setSource(window.MUSIC_SRC); },0);
+  setTimeout(function(){ if(!navigator.onLine) return; RFAV.filter(function(x){return !x.url;}).reduce(function(p,st){ return p.then(function(){ return resolveSt(st).catch(function(){}); }); },Promise.resolve()); },4000);
+
+  window.addEventListener('resize',function(){setTimeout(fitPl,120);});
+  if(window.ResizeObserver){ try{ new ResizeObserver(function(){fitPl();}).observe($('plists')); }catch(e){} }
+  window.loadPlSoon=loadPl; drawPl(); setTimeout(loadPl,1500); setInterval(loadPl,5*60*1000);
+
+  /* ======================================================
+     Fechas, festivos de Colombia (Ley Emiliani) y pico y placa
+     ====================================================== */
+  function pad(n){return (n<10?'0':'')+n;}
+  function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+  function parseYmd(t){if(!t)return null;var p=t.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+  function today0(){var d=new Date();d.setHours(0,0,0,0);return d;}
+  function addDays(d,n){var x=new Date(d);x.setDate(x.getDate()+n);return x;}
+  function daysBetween(a,b){return Math.round((b-a)/864e5);}
+  var DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  function fLong(d){return DIAS[d.getDay()]+' '+d.getDate()+' de '+MESES[d.getMonth()];}
+  function fShort(d){return d.getDate()+' de '+MESES[d.getMonth()]+' de '+d.getFullYear();}
+  function nextMon(d){var x=new Date(d);while(x.getDay()!==1)x.setDate(x.getDate()+1);return x;}
+  function easter(y){var a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+    h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+    mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da);}
+  var FEST={};
+  function festivos(y){
+    if(FEST[y])return FEST[y]; var s={}; function add(d){s[ymd(d)]=1;}
+    [[1,1],[5,1],[7,20],[8,7],[12,8],[12,25]].forEach(function(p){add(new Date(y,p[0]-1,p[1]));});
+    [[1,6],[3,19],[6,29],[8,15],[10,12],[11,1],[11,11]].forEach(function(p){add(nextMon(new Date(y,p[0]-1,p[1])));});
+    var E=easter(y); add(addDays(E,-3)); add(addDays(E,-2));
+    add(nextMon(addDays(E,39))); add(nextMon(addDays(E,60))); add(nextMon(addDays(E,68)));
+    return FEST[y]=s;
+  }
+  function isFestivo(d){return !!festivos(d.getFullYear())[ymd(d)];}
+
+  /* Reglas para carros particulares, consultadas el 10 de noviembre de 2026.
+     Cuando una alcaldía cambie la rotación, se actualiza este bloque. */
+  var CITIES={
+    villavicencio:{name:'Villavicencio',hours:[[390,570],[1020,1200]],map:{1:[5,6],2:[7,8],3:[9,0],4:[1,2],5:[3,4]},until:'2026-12-22',
+      note:'Decreto 015 de 2026. Aplica dentro del polígono definido por la Secretaría de Movilidad; las vías que lo bordean, como la Avenida 40 y la vía al Llano, se pueden usar.'},
+    bogota:{name:'Bogotá',hours:[[360,1260]],parity:{odd:[6,7,8,9,0],even:[1,2,3,4,5]},until:null,
+      note:'Días impares: restricción para placas 6, 7, 8, 9 y 0. Días pares: 1, 2, 3, 4 y 5. Hay jornadas extraordinarias que este tablero no conoce.'},
+    medellin:{name:'Medellín',hours:[[300,1200]],map:{1:[5,8],2:[1,4],3:[0,2],4:[3,6],5:[7,9]},until:'2027-01-29',
+      note:'Rotación del segundo semestre de 2026, para Medellín y el Valle de Aburrá. Algunas vías están exentas.'},
+    cali:{name:'Cali',hours:[[360,1140]],map:{1:[9,0],2:[1,2],3:[3,4],4:[5,6],5:[7,8]},until:'2026-12-31',
+      note:'Rotación del segundo semestre de 2026.'},
+    /* Ciudades agregadas el 11 de noviembre de 2026 */
+    bucaramanga:{name:'Bucaramanga',hours:[[360,1200]],map:{1:[5,6],2:[7,8],3:[9,0],4:[1,2],5:[3,4]},until:'2026-12-31',
+      sat:{hours:[[540,780]],anchor:'2026-11-07',start:[7,8]},
+      note:'Rotación del último trimestre de 2026, también en Floridablanca, Girón y Piedecuesta. Los sábados rige de 9:00 a. m. a 1:00 p. m. y los dígitos cambian cada semana.'},
+    tunja:{name:'Tunja',hours:[[360,540],[720,840],[1020,1200]],map:{1:[3,4],2:[5,6],3:[7,8],4:[9,0],5:[1,2]},until:null,
+      note:'Horario en tres franjas para la ciudad. En el centro histórico la restricción es continua, de 6:00 a. m. a 8:00 p. m.'},
+    santamarta:{name:'Santa Marta',hours:[[420,1200]],map:{1:[1,2],2:[3,4],3:[5,6],4:[7,8],5:[9,0]},until:null,
+      note:'Decreto 213 de 2026, por seis meses iniciales. El horario mostrado es el de carros matriculados fuera de Santa Marta (continuo). Los matriculados allá tienen tres franjas: 7 a 9 a. m., 11:30 a. m. a 2 p. m. y 5 a 8 p. m.'},
+    cartagena:{name:'Cartagena',hours:[[420,540],[1080,1200]],map:{1:[1,2],2:[3,4],3:[5,6],4:[7,8],5:[9,0]},until:'2027-01-22',
+      note:'Rotación vigente desde el 5 de octubre de 2026. Aplica en las vías principales; el decreto prevé periodos especiales en temporada.'},
+    ibague:{name:'Ibagué',hours:[[360,1260]],map:{1:[6,7],2:[8,9],3:[0,1],4:[2,3],5:[4,5]},until:'2026-12-31',
+      note:'Rotación del segundo semestre de 2026. Los carros matriculados en Ibagué tienen hora valle de 9 a 11 a. m. y de 3 a 5 p. m.'},
+    armenia:{name:'Armenia',hours:[[420,1140]],map:{1:[5,6],2:[7,8],3:[9,0],4:[1,2],5:[3,4]},until:null,
+      note:'Aplica en todo el perímetro urbano. En el cuadrante norte hay una restricción adicional con otra rotación (7:00 a 8:30 a. m. y 5:30 a 7:00 p. m.).'},
+    pereira:{name:'Pereira',hours:[[360,1200]],map:{1:[0,1],2:[2,3],3:[4,5],4:[6,7],5:[8,9]},until:null,
+      note:'Esquema ordinario del Instituto de Movilidad, en toda la zona urbana. Algunas vías nacionales, como Autopistas del Café, están exentas.'},
+    manizales:{name:'Manizales',none:true,hours:[],map:{},until:null,
+      note:'No hay pico y placa para carros particulares en el casco urbano; solo para taxis. La vía a Murillo (Nevado del Ruiz) tiene restricción ambiental algunos fines de semana.'}
+  };
+  var PLATE = lsGet('plate')!==null ? parseInt(lsGet('plate'),10) : 6;
+  var MAIN = lsGet('mainCity') || 'villavicencio';
+  if(!CITIES[MAIN]) MAIN='villavicencio';
+  var VIEW = MAIN;   // la ciudad consultada vuelve a la principal al reabrir
+
+  var PAIRS=[[1,2],[3,4],[5,6],[7,8],[9,0]];
+  function satDigits(c,d){   // sábados con rotación semanal (Bucaramanga)
+    var i0=PAIRS.findIndex(function(p){return p[0]===c.sat.start[0];});
+    var wk=Math.round((d-parseYmd(c.sat.anchor))/(7*864e5));
+    return PAIRS[(((i0+wk)%5)+5)%5];
+  }
+  function hoursFor(c,d){ return (d.getDay()===6&&c.sat)?c.sat.hours:c.hours; }
+  function restricted(c,d,dig){
+    if(c.none) return false;
+    var w=d.getDay(); if(w===0||isFestivo(d)) return false;
+    if(w===6) return !!c.sat && satDigits(c,d).indexOf(dig)>-1;
+    if(c.parity) return (d.getDate()%2===1?c.parity.odd:c.parity.even).indexOf(dig)>-1;
+    return (c.map[w]||[]).indexOf(dig)>-1;
+  }
+  function h12(m){var h=Math.floor(m/60),mi=m%60,ap=h<12?'a. m.':'p. m.';h=h%12||12;return h+':'+pad(mi)+' '+ap;}
+  function hoursTxt(h){return h.map(function(r){return h12(r[0])+' a '+h12(r[1]);}).join(' y ');}
+
+  /* Ocultar/mostrar pico y placa con deslizamiento hacia la izquierda */
+  function applyPP(hidden){document.querySelector('.app').classList.toggle('nopp',hidden);lsSet('ppHidden',hidden?'1':'');
+    setTimeout(function(){window.dispatchEvent(new Event('resize'));},30);}
+  var ppBusy=false, EASE='cubic-bezier(.2,.8,.2,1)';
+  function slideFrom(el,before,ms){
+    if(!el.animate) return; var a=el.getBoundingClientRect(), dx=before.left-a.left, dy=before.top-a.top;
+    if(Math.abs(dx)>1||Math.abs(dy)>1) el.animate([{transform:'translate('+dx+'px,'+dy+'px)'},{transform:'none'}],{duration:ms,easing:EASE});
+  }
+  function setPP(hidden,animate){
+    var pp=$('pyp'), fuel=document.querySelector('.fuel');
+    var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(!animate||reduce||!pp.animate||ppBusy){applyPP(hidden);return;}
+    ppBusy=true;
+    if(hidden){
+      var an=pp.animate([{transform:'none',opacity:1},{transform:'translateX(-110%)',opacity:0}],{duration:240,easing:'ease-in',fill:'forwards'});
+      an.onfinish=function(){ var b=fuel.getBoundingClientRect(); applyPP(true); an.cancel(); slideFrom(fuel,b,340); ppBusy=false; };
+    } else {
+      var b=fuel.getBoundingClientRect(); applyPP(false); slideFrom(fuel,b,340);
+      var an2=pp.animate([{transform:'translateX(-110%)',opacity:0},{transform:'none',opacity:1}],{duration:340,easing:EASE});
+      an2.onfinish=function(){ppBusy=false;};
+    }
+  }
+  $('ppHide').onclick=function(){setPP(true,true);};
+  $('ppShow').onclick=function(){setPP(false,true);};
+  setPP(lsGet('ppHidden')==='1',false);
+  function renderPico(){
+    var c=CITIES[VIEW], now=new Date(), t=today0(), mins=now.getHours()*60+now.getMinutes();
+    var box=$('pyp'), st=$('pState'), sub=$('pSub'), nx=$('pNext');
+    $('pDig').textContent='placa '+PLATE; $('cityBtn').textContent=c.name;
+    var cls='', state, detail;
+    if(restricted(c,t,PLATE)){
+      var hrs=hoursFor(c,t); var cur=hrs.filter(function(r){return mins>=r[0]&&mins<r[1];})[0];
+      var later=hrs.filter(function(r){return mins<r[0];})[0];
+      if(cur){cls='crit';state='Pico y placa ahora';detail='Hasta las '+h12(cur[1])+'. Hoy: '+hoursTxt(hrs)+'.';}
+      else if(later){cls='warn';state='Hoy tienes pico y placa';detail='Empieza a las '+h12(later[0])+'. Horario: '+hoursTxt(hrs)+'.';}
+      else {state='Ya terminó el pico y placa de hoy';detail='Hoy fue de '+hoursTxt(hrs)+'.';}
+    } else if(c.none){
+      state='Sin pico y placa'; detail='Esta ciudad no tiene restricción para carros particulares.';
+    } else {
+      state='Hoy puedes circular';
+      var w=t.getDay(); detail = isFestivo(t)?'Es festivo, no aplica.':(w===0||(w===6&&!c.sat))?'Fin de semana, no aplica.':'Hoy no le toca a tu placa.';
+    }
+    box.className='card pyp '+cls; st.textContent=state; sub.textContent=detail.replace(/\.\./g,'.'); sub.className='psub';
+    var d=addDays(t,1),k=0; while(k<40&&!restricted(c,d,PLATE)){d=addDays(d,1);k++;}
+    var nextTxt = k<40 ? 'Próximo para placa '+PLATE+': '+fLong(d)+'.' : '';
+    var u=parseYmd(c.until);
+    if(u && t>u){ nx.className='psub stale'; nx.textContent='Estas reglas vencieron el '+fShort(u)+'. Hay que actualizar el tablero.'; }
+    else { nx.className='psub'; nx.textContent=nextTxt+(u&&daysBetween(t,u)<=10?' Las reglas actuales vencen el '+fShort(u)+'.':''); }
+  }
+  function openDlg(d){try{d.showModal();}catch(e){d.setAttribute('open','');}}
+  var cd=$('cdlg');
+  function drawCities(){
+    var box=$('cList'); box.innerHTML='';
+    Object.keys(CITIES).forEach(function(id){
+      var c=CITIES[id], b=document.createElement('button'), t=today0();
+      b.setAttribute('aria-current', id===VIEW);
+      b.innerHTML='<b></b><span></span>'; b.firstChild.textContent=c.name+(id===MAIN?' (principal)':'');
+      b.lastChild.textContent=c.none?'Sin pico y placa':restricted(c,t,PLATE)?'Hoy tienes pico y placa':'Hoy libre';
+      b.onclick=function(){VIEW=id;renderPico();drawCities();};
+      box.appendChild(b);
+    });
+    $('cNote').textContent=CITIES[VIEW].note;
+  }
+  $('cityBtn').onclick=function(){drawCities();openDlg(cd);};
+  $('cClose').onclick=function(){cd.close();};
+
+  /* ======================================================
+     Documentos (SOAT y técnico-mecánica) y mantenimiento por km
+     ====================================================== */
+  function loadJ(k,def){try{var v=JSON.parse(lsGet(k)||'null');return v||def;}catch(e){return def;}}
+  var DOCS=loadJ('docs',{soat:{vence:'',snooze:''},rtm:{vence:'',snooze:''}});
+  var DOCNAME={soat:'SOAT',rtm:'Revisión técnico-mecánica'};
+  var MANT=loadJ('mant',{odo:null,items:[
+    {id:'aceite',name:'Cambio de aceite y filtro',every:5000,last:null},
+    {id:'aire',name:'Filtro de aire',every:10000,last:null},
+    {id:'llantas',name:'Rotación de llantas',every:10000,last:null},
+    {id:'alin',name:'Alineación y balanceo',every:10000,last:null}]});
+  function saveDocs(){lsSet('docs',JSON.stringify(DOCS));}
+  function saveMant(){lsSet('mant',JSON.stringify(MANT));}
+  var SESS={};   // avisos cerrados "por ahora" en esta sesión
+
+  function dueList(){
+    var out=[], t=today0();
+    Object.keys(DOCS).forEach(function(k){
+      var v=parseYmd(DOCS[k].vence); if(!v||SESS[k]) return;
+      var left=daysBetween(t,v); if(left>2) return;
+      if(left>=0 && DOCS[k].snooze && t<parseYmd(DOCS[k].snooze)) return;
+      out.push({kind:'doc',id:k,left:left,crit:left<0});
+    });
+    if(MANT.odo!=null) MANT.items.forEach(function(it){
+      if(it.last==null||SESS[it.id]) return;
+      var left=Math.round(it.last+it.every-MANT.odo); if(left>300) return;
+      out.push({kind:'mant',id:it.id,left:left,crit:left<0});
+    });
+    return out;
+  }
+  function renderAlertChip(){
+    var L=dueList(), b=$('alertBtn');
+    b.hidden=!L.length; b.textContent=L.length===1?'1 aviso':L.length+' avisos';
+    b.className='chip alert'+(L.some(function(x){return x.crit;})?' crit':'');
+  }
+  var ad=$('adlg'), pendingAlert=false;
+  function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+  function btn(txt,cls,fn){var b=el('button','btn sm '+(cls||''),txt);b.onclick=fn;return b;}
+  function drawAlerts(){
+    var box=$('aList'); box.innerHTML=''; var L=dueList();
+    if(!L.length){ad.close();renderAlertChip();return;}
+    L.forEach(function(a){
+      var card=el('div','aitem'+(a.crit?' crit':'')), row=el('div','row'), more=el('div','more');
+      if(a.kind==='doc'){
+        var d=DOCS[a.id], v=parseYmd(d.vence);
+        card.appendChild(el('b',null,DOCNAME[a.id]));
+        card.appendChild(el('p',null, a.left<0 ? 'Venció el '+fShort(v)+' (hace '+(-a.left)+(a.left===-1?' día':' días')+'). Manejar sin este documento vigente te expone a multa e inmovilización del carro.'
+          : a.left===0 ? 'Vence hoy, '+fShort(v)+'.' : 'Vence el '+fShort(v)+' (en '+a.left+(a.left===1?' día':' días')+').'));
+        var inp=el('input'); inp.type='date'; var nv=new Date(v); nv.setFullYear(nv.getFullYear()+1); inp.value=ymd(nv);
+        row.appendChild(btn('Ya lo compré','solid',function(){more.className='more on';more.innerHTML='';
+          more.appendChild(el('span','psub','Nueva fecha de vencimiento:')); more.appendChild(inp);
+          more.appendChild(btn('Guardar','solid',function(){if(!inp.value)return;d.vence=inp.value;d.snooze='';saveDocs();drawAlerts();renderAlertChip();}));}));
+        if(a.left>=0){
+          var sel=el('select'); [[1,'Mañana'],[3,'En 3 días'],[7,'En 7 días']].forEach(function(o){var op=el('option',null,o[1]);op.value=o[0];sel.appendChild(op);});
+          var dt=el('input'); dt.type='date';
+          row.appendChild(btn('Recordarme después','',function(){more.className='more on';more.innerHTML='';
+            more.appendChild(sel); more.appendChild(el('span','psub','o el día')); more.appendChild(dt);
+            more.appendChild(btn('Listo','solid',function(){d.snooze= dt.value || ymd(addDays(today0(),parseInt(sel.value,10)));saveDocs();drawAlerts();renderAlertChip();}));}));
+        }
+      } else {
+        var it=MANT.items.filter(function(x){return x.id===a.id;})[0];
+        card.appendChild(el('b',null,it.name));
+        card.appendChild(el('p',null, a.left<0 ? 'Pasado por '+(-a.left).toLocaleString('es-CO')+' km.' : 'Faltan '+a.left.toLocaleString('es-CO')+' km.'));
+        row.appendChild(btn('Hecho','solid',function(){it.last=Math.round(MANT.odo);saveMant();drawAlerts();renderAlertChip();}));
+      }
+      row.appendChild(btn('Cerrar por ahora','ghost',function(){SESS[a.id]=1;drawAlerts();renderAlertChip();}));
+      card.appendChild(row); card.appendChild(more); box.appendChild(card);
+    });
+  }
+  function showAlerts(force){
+    if(!dueList().length) return;
+    if(driving && !force){pendingAlert=true;return;}   // nunca interrumpe mientras manejas
+    pendingAlert=false; drawAlerts(); if(!ad.open) openDlg(ad);
+  }
+  $('alertBtn').onclick=function(){showAlerts(true);};
+  $('aClose').onclick=function(){dueList().forEach(function(a){SESS[a.id]=1;});ad.close();renderAlertChip();};
+  // "al encender": al abrir el tablero y al volver a él tras 2 horas o más
+  var lastShown=0;
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible' && Date.now()-lastShown>2*3600e3){SESS={};lastShown=Date.now();renderAlertChip();setTimeout(showAlerts,1200);}
+  });
+
+  /* ======================================================
+     Ajustes
+     ====================================================== */
+  var sd=$('sdlg');
+  Object.keys(CITIES).forEach(function(id){var o=el('option',null,CITIES[id].name);o.value=id;$('mainCity').appendChild(o);});
+  function drawMant(){
+    var box=$('mantList'); box.innerHTML='';
+    MANT.items.forEach(function(it){
+      var r=el('div','mrow'), name=el('div',null,it.name), inp=el('input');
+      inp.type='number'; inp.inputMode='numeric'; inp.value=it.every; inp.setAttribute('aria-label',it.name+': cada cuántos km'); inp.dataset.id=it.id;
+      var info = MANT.odo==null||it.last==null ? 'Pon el kilometraje para empezar' : 'Faltan '+Math.round(it.last+it.every-MANT.odo).toLocaleString('es-CO')+' km';
+      name.appendChild(el('small',null,'Cada '+it.every.toLocaleString('es-CO')+' km · '+info));
+      r.appendChild(name); r.appendChild(inp);
+      r.appendChild(btn('Hecho hoy','',function(){var o=parseFloat($('odoIn').value);if(!(o>=0))return;MANT.odo=o;it.last=o;saveMant();drawMant();renderAlertChip();}));
+      box.appendChild(r);
+    });
+  }
+  function saveSettings(){
+    var t=parseFloat($('tank').value); if(t>0){TANK=t;lsSet('tank',t);}
+    var p=parseInt($('plate').value,10); if(p>=0&&p<=9){PLATE=p;lsSet('plate',p);}
+    MAIN=$('mainCity').value; lsSet('mainCity',MAIN); VIEW=MAIN;
+    lsSet('night',$('nightMode').value); lsSet('clock24',$('clock24').value);
+    var hn=$('helloIn').value.trim(); if(hn){lsSet('helloName',hn); if(NATIVE) nativePost({cmd:'hello',name:hn});}
+    ['soat','rtm'].forEach(function(k){var v=$(k+'D').value; if(v!==DOCS[k].vence){DOCS[k].vence=v;DOCS[k].snooze='';delete SESS[k];}});
+    saveDocs();
+    var o=parseFloat($('odoIn').value);
+    if(o>=0 && (MANT.odo==null || Math.abs(o-MANT.odo)>=1)){ MANT.odo=o; MANT.items.forEach(function(it){if(it.last==null)it.last=o;}); }
+    Array.prototype.forEach.call($('mantList').querySelectorAll('input'),function(i){
+      var v=parseInt(i.value,10); var it=MANT.items.filter(function(x){return x.id===i.dataset.id;})[0]; if(v>0&&it)it.every=v;});
+    saveMant(); lsSet('sp_cid',$('cid').value.trim()); var tk2=$('ttKey').value.trim(); if(tk2!==(lsGet('tt_key')||'')){lsSet('tt_key',tk2); if(window.navInit)window.navInit();}
+    renderCar(); renderPico(); applyNight(); renderAlertChip();
+  }
+  $('setBtn').onclick=function(){
+    $('redir').textContent=REDIR; $('cid').value=lsGet('sp_cid')||''; $('tank').value=TANK; $('plate').value=PLATE;
+    $('mainCity').value=MAIN; $('nightMode').value=lsGet('night')||'auto'; $('clock24').value=lsGet('clock24')==='1'?'1':'0';
+    $('soatD').value=DOCS.soat.vence; $('rtmD').value=DOCS.rtm.vence;
+    $('helloIn').value=lsGet('helloName')||'Alfonso'; $('odoIn').value=MANT.odo==null?'':Math.round(MANT.odo); $('ttKey').value=lsGet('tt_key')||''; drawMant(); openDlg(sd);
+  };
+  $('sClose').onclick=function(){sd.close();};
+  $('sSave').onclick=function(){saveSettings();sd.close();showAlerts();};
+  $('spIn').onclick=function(){saveSettings();spLogin();};
+  $('spOut').onclick=function(){['sp_at','sp_rt','sp_exp','sp_v','sp_pl'].forEach(lsDel); $('plists').innerHTML='';SP.track=null;sd.close();renderMusic();};
+
+  /* ======================================================
+     Modo manejo, modo noche y odómetro
+     ====================================================== */
+  var driving=false, slowSecs=0, tk=0;
+  function applyNight(){
+    var m=lsGet('night')||'auto', h=new Date().getHours();
+    document.body.classList.toggle('night', m==='on' || (m==='auto' && (h>=18||h<6)));
+  }
+  setInterval(function(){
+    if(!S.demo){
+      if(MANT.odo!=null){MANT.odo+=S.speed/3600; if(tk%20===0)saveMant();}
+      if(S.speed>10){ if(!driving){driving=true; [sd,$('dlg'),cd].forEach(function(d){if(d.open)d.close();});} slowSecs=0; }
+      else if(S.speed<3 && driving){ if(++slowSecs>=5){driving=false; if(pendingAlert)showAlerts();} }
+    } else if(driving){ driving=false; }
+    document.body.classList.toggle('driving',driving);
+    if(tk%15===0){renderPico();applyNight();renderAlertChip();}
+    tk++;
+  },1000);
+
+  renderPico(); applyNight(); renderAlertChip(); lastShown=Date.now(); setTimeout(showAlerts,1500);
+
+  /* Conexión */
+  function net(){var on=navigator.onLine;$('netDot').className='dot '+(on?'ok':'bad');$('netTxt').textContent=on?'En línea':'Sin internet';if(on)poll();else{SP.online=false;renderMusic();}}
+  window.addEventListener('online',net);window.addEventListener('offline',net);
+
+  /* Mapa decorativo (el mapa real va en la app de navegación) */
+  var cv=$('map'), cx=cv.getContext('2d');
+  function drawMap(){
+    var r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+    if(r.width<10){return;}
+    if(cv.width!==Math.round(r.width*dpr)){cv.width=Math.round(r.width*dpr);cv.height=Math.round(r.height*dpr);}
+    var w=cv.width,h=cv.height; cx.clearRect(0,0,w,h); cx.strokeStyle='#1c2631'; cx.lineWidth=2*dpr;
+    var off=(S.trip*40*dpr)%(60*dpr);
+    for(var x=-60*dpr;x<w+60*dpr;x+=60*dpr){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x+h*.4,h);cx.stroke();}
+    for(var y=-off;y<h+60*dpr;y+=60*dpr){cx.beginPath();cx.moveTo(0,y);cx.lineTo(w,y+10*dpr);cx.stroke();}
+    cx.strokeStyle='#3ea6ff';cx.lineWidth=6*dpr;cx.lineCap='round';cx.beginPath();cx.moveTo(w*.5,h*.9);cx.quadraticCurveTo(w*.5,h*.5,w*.72,h*.15);cx.stroke();
+    cx.fillStyle='#fff';cx.beginPath();cx.moveTo(w*.5,h*.72);cx.lineTo(w*.5-12*dpr,h*.72+26*dpr);cx.lineTo(w*.5+12*dpr,h*.72+26*dpr);cx.closePath();cx.fill();
+  }
+  window.addEventListener('resize',drawMap);
+
+
+
+  /* ======================================================
+     Navegación interna con TomTom (mapa, tráfico, ruta y voz)
+     Necesita la clave en Ajustes y conexión para buscar y calcular rutas.
+     ====================================================== */
+  var NAVC={home:[4.1420,-73.6266]};   // centro de Villavicencio si aún no hay GPS
+  var map=null, carMk=null, destMk=null, routeLn=null, trafficLy=null, follow=true, voiceOn=lsGet('tt_voice')!=='0';
+  var R=null;   // ruta activa: {pts,cum,ins,dest,summary,spoken:{},offCount,lastCalc}
+  function key(){return (lsGet('tt_key')||'').trim();}
+  function hav(a,b,c,d){var r=Math.PI/180,x=(d-b)*r*Math.cos((a+c)/2*r),y=(c-a)*r;return Math.sqrt(x*x+y*y)*6371000;}
+  function here(){return (S.lat!=null)?[S.lat,S.lon]:(map?[map.getCenter().lat,map.getCenter().lng]:NAVC.home);}
+  function fmtDist(m){return m>=1000?(m/1000).toFixed(m>=10000?0:1).replace('.',',')+' km':(Math.round(m/10)*10)+' m';}
+  function fmtMin(s){var m=Math.round(s/60);return m<60?m+' min':Math.floor(m/60)+' h '+pad(m%60)+' min';}
+  function note(t){var n=$('mapNote');n.textContent=t||'';n.hidden=!t;}
+
+  function navInit(){
+    var has=!!key() && typeof L!=='undefined';
+    $('tmap').hidden=!has; $('mapBtns').hidden=!has; $('map').style.visibility=has?'hidden':'visible';
+    if(!key()){note('Pon tu clave de TomTom en Ajustes para ver el mapa y navegar aquí.');return;}
+    if(typeof L==='undefined'){note('No se pudo cargar el mapa. Abre el tablero con internet una vez para guardarlo.');return;}
+    note('');
+    if(!map){
+      map=L.map('tmap',{zoomControl:false,attributionControl:true,center:here(),zoom:15});
+      map.attributionControl.setPrefix(false);
+      map.on('dragstart',function(){follow=false;});
+    } else { map.eachLayer(function(l){map.removeLayer(l);}); carMk=destMk=routeLn=null; }
+    var k=encodeURIComponent(key());
+    var base=L.tileLayer('https://api.tomtom.com/map/1/tile/basic/night/{z}/{x}/{y}.png?key='+k+'&language=es-ES',
+      {maxZoom:20,maxNativeZoom:20,tileSize:256,attribution:'© TomTom'}).addTo(map);
+    base.on('tileerror',function(){ if(navigator.onLine) note('TomTom no aceptó la clave o falló la conexión. Revisa la clave en Ajustes.'); });
+    base.on('tileload',function(){ if($('mapNote').textContent.indexOf('TomTom no aceptó')===0) note(''); });
+    trafficLy=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0-dark/{z}/{x}/{y}.png?key='+k,{maxZoom:20,opacity:.85,zIndex:5});
+    if(lsGet('tt_traffic')!=='0') trafficLy.addTo(map);
+    $('mTraffic').setAttribute('aria-pressed',lsGet('tt_traffic')!=='0');
+    if(R) drawRoute();
+    setTimeout(function(){map.invalidateSize();},200);
+    navOnFix();
+  }
+  window.navInit=navInit;
+
+  function carIcon(){return L.divIcon({className:'',html:'<div class="carpin" style="transform:rotate('+(S.heading||0)+'deg)"><i></i></div>',iconSize:[34,34],iconAnchor:[17,17]});}
+  function navOnFix(){
+    if(!map||S.lat==null) return;
+    var p=[S.lat,S.lon];
+    if(!carMk) carMk=L.marker(p,{icon:carIcon(),interactive:false,zIndexOffset:1000}).addTo(map);
+    else { carMk.setLatLng(p); carMk.setIcon(carIcon()); }
+    if(follow) map.setView(p, R?17:Math.max(map.getZoom(),15), {animate:true});
+    if(R) guide();
+  }
+  window.navOnFix=navOnFix; window.navDest=function(){return R&&R.dest||null;};
+
+  /* ---- búsqueda de destino ---- */
+  function navSearch(){
+    var q=$('destIn').value.trim(); if(!q){$('destIn').focus();return;}
+    if(!key()){note('Primero pon tu clave de TomTom en Ajustes.');return;}
+    if(!navigator.onLine){note('Sin internet no se pueden buscar destinos.');return;}
+    var h=here(), box=$('results');
+    box.hidden=false; box.innerHTML='<button disabled>Buscando…</button>';
+    fetch('https://api.tomtom.com/search/2/search/'+encodeURIComponent(q)+'.json?key='+encodeURIComponent(key())+
+      '&countrySet=CO&language=es-ES&limit=6&lat='+h[0]+'&lon='+h[1])
+    .then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(function(j){
+      box.innerHTML='';
+      var res=(j.results||[]);
+      if(!res.length){box.innerHTML='<button disabled>No encontré ese lugar. Prueba con otra dirección o nombre.</button>';}
+      res.forEach(function(x){
+        var b=document.createElement('button'), name=(x.poi&&x.poi.name)||x.address.freeformAddress;
+        b.textContent=name; var sp=document.createElement('span');
+        sp.textContent=(x.poi?x.address.freeformAddress+' · ':'')+(x.dist!=null?fmtDist(x.dist):''); b.appendChild(sp);
+        b.onclick=function(){box.hidden=true; startRoute({lat:x.position.lat,lon:x.position.lon,name:name});};
+        box.appendChild(b);
+      });
+      var c=document.createElement('button'); c.textContent='Cancelar'; c.style.color='var(--muted)'; c.onclick=function(){box.hidden=true;}; box.appendChild(c);
+    })
+    .catch(function(){box.innerHTML='';box.hidden=true;note('No se pudo buscar. Revisa la conexión o la clave de TomTom.');});
+  }
+  window.navSearch=navSearch;
+  $('goBtn').onclick=navSearch;
+  $('destIn').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();$('destIn').blur();navSearch();}});
+
+  /* ---- ruta ---- */
+  function startRoute(dest){
+    unlockVoice();
+    calcRoute(dest,function(ok){ if(ok){ follow=true; say('Ruta lista hacia '+dest.name+'. '+R.ins[0].message); } });
+  }
+  function calcRoute(dest,cb){
+    var h=here();
+    note('Calculando ruta…');
+    var url='https://api.tomtom.com/routing/1/calculateRoute/'+h[0]+','+h[1]+':'+dest.lat+','+dest.lon+'/json?key='+encodeURIComponent(key())+
+      '&traffic=true&travelMode=car&routeType=fastest&instructionsType=text&language=es-ES'+(S.heading!=null?'&vehicleHeading='+Math.round(S.heading):'');
+    fetch(url).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();})
+    .then(function(j){
+      var rt=j.routes&&j.routes[0]; if(!rt) throw new Error('sin ruta');
+      var pts=[]; rt.legs.forEach(function(l){l.points.forEach(function(p){pts.push([p.latitude,p.longitude]);});});
+      var cum=[0]; for(var i=1;i<pts.length;i++) cum.push(cum[i-1]+hav(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]));
+      R={pts:pts,cum:cum,ins:(rt.guidance&&rt.guidance.instructions)||[],dest:dest,summary:rt.summary,spoken:{},offCount:0,lastCalc:Date.now(),idx:0};
+      note(''); drawRoute(); guide(); if(cb)cb(true);
+    })
+    .catch(function(){ note(navigator.onLine?'No se pudo calcular la ruta. Revisa la clave de TomTom.':'Sin señal: no puedo calcular la ruta ahora.'); if(cb)cb(false); });
+  }
+  function drawRoute(){
+    if(!map||!R) return;
+    if(routeLn) map.removeLayer(routeLn); if(destMk) map.removeLayer(destMk);
+    routeLn=L.polyline(R.pts,{color:'#3ea6ff',weight:7,opacity:.9}).addTo(map);
+    destMk=L.marker(R.pts[R.pts.length-1],{icon:L.divIcon({className:'',html:'<div class="destpin"></div>',iconSize:[18,18],iconAnchor:[9,9]})}).addTo(map);
+    if(S.lat==null||!follow) map.fitBounds(routeLn.getBounds(),{padding:[40,40]});
+    $('tripBar').hidden=false; $('guide').hidden=false; document.body.classList.add('routing');
+  }
+  function endRoute(silent){
+    R=null; if(routeLn&&map)map.removeLayer(routeLn); if(destMk&&map)map.removeLayer(destMk); routeLn=destMk=null;
+    $('tripBar').hidden=true; $('guide').hidden=true; document.body.classList.remove('routing'); if(map)setTimeout(function(){map.invalidateSize();},100); if(!silent) say('Navegación terminada.');
+  }
+  $('tEnd').onclick=function(){endRoute();};
+
+  /* ---- seguimiento de la ruta e indicaciones ---- */
+  function nearest(lat,lon){
+    // punto más cercano de la ruta, buscando cerca del último índice para no saltar a otra parte
+    var best=1e12,bi=R.idx,from=Math.max(0,R.idx-30),to=Math.min(R.pts.length-1,R.idx+400);
+    if(R.offCount>2){from=0;to=R.pts.length-1;}
+    var kx=Math.cos(lat*Math.PI/180)*111320,ky=110540,bt=0;
+    for(var i=from;i<to;i++){
+      var ax=(R.pts[i][1]-lon)*kx,ay=(R.pts[i][0]-lat)*ky,bx=(R.pts[i+1][1]-lon)*kx,by=(R.pts[i+1][0]-lat)*ky;
+      var dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy,t=L2?Math.max(0,Math.min(1,-(ax*dx+ay*dy)/L2)):0;
+      var px=ax+t*dx,py=ay+t*dy,d=px*px+py*py; if(d<best){best=d;bi=i;bt=t;}
+    }
+    return {dist:Math.sqrt(best),idx:bi,offset:R.cum[bi]+bt*(R.cum[bi+1]-R.cum[bi])};
+  }
+  var ARROW={TURN_LEFT:'↰',TURN_RIGHT:'↱',KEEP_LEFT:'↖',KEEP_RIGHT:'↗',BEAR_LEFT:'↖',BEAR_RIGHT:'↗',SHARP_LEFT:'↰',SHARP_RIGHT:'↱',
+    MAKE_UTURN:'↶',ROUNDABOUT_RIGHT:'⟳',ROUNDABOUT_LEFT:'⟲',ROUNDABOUT_CROSS:'⟳',ROUNDABOUT_BACK:'⟳',ARRIVE:'⚑',ARRIVE_LEFT:'⚑',ARRIVE_RIGHT:'⚑',
+    STRAIGHT:'↑',FOLLOW:'↑',DEPART:'↑',MOTORWAY_EXIT_LEFT:'↖',MOTORWAY_EXIT_RIGHT:'↗'};
+  function guide(){
+    if(!R) return;
+    var total=R.cum[R.cum.length-1], off=0, onRoute=true;
+    if(S.lat!=null){
+      var n=nearest(S.lat,S.lon); off=n.offset; R.idx=n.idx;
+      onRoute = n.dist < Math.max(45,(S.acc||0)*1.5);
+      R.offCount = onRoute?0:R.offCount+1;
+      // desvío: recalcula con tráfico, como máximo cada 20 s
+      if(R.offCount>=3 && Date.now()-R.lastCalc>20000 && navigator.onLine){ R.lastCalc=Date.now(); say('Recalculando.'); calcRoute(R.dest); return; }
+    }
+    var left=Math.max(0,total-off);
+    if(S.lat!=null && left<35){ say('Has llegado a tu destino.'); endRoute(true); return; }
+    var next=null; for(var i=0;i<R.ins.length;i++){ if(R.ins[i].routeOffsetInMeters>off+8){next=R.ins[i];break;} }
+    if(!next) next=R.ins[R.ins.length-1]||{message:'Sigue la ruta',maneuver:'STRAIGHT',routeOffsetInMeters:total};
+    var dn=Math.max(0,next.routeOffsetInMeters-off);
+    $('gMan').textContent=ARROW[next.maneuver]||'↑';
+    $('gDist').textContent=onRoute?fmtDist(dn):'Fuera de la ruta';
+    $('gMsg').textContent=next.message||'';
+    // voz: aviso previo y aviso al llegar al giro
+    var id=next.routeOffsetInMeters, sp=R.spoken[id]||0, kmh=S.speed||30, far=Math.max(250,kmh*12);
+    if(S.lat!=null && onRoute){
+      if(sp<1 && dn<=far && dn>far*0.55){ say('En '+fmtDist(dn).replace(' m',' metros').replace(' km',' kilómetros')+', '+next.message); R.spoken[id]=1; }
+      else if(sp<2 && dn<=Math.max(40,kmh*2.2)){ say(next.message); R.spoken[id]=2; }
+    }
+    // resumen: hora de llegada con el tiempo restante proporcional
+    var s=R.summary, frac=total?left/total:0, secs=s.travelTimeInSeconds*frac, eta=new Date(Date.now()+secs*1000);
+    $('tEta').textContent=eta.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+    $('tSum').textContent=fmtDist(left)+' · '+fmtMin(secs);
+    $('tTraffic').textContent=s.trafficDelayInSeconds>60?'Incluye '+fmtMin(s.trafficDelayInSeconds)+' de demora por tráfico':'Tráfico fluido';
+  }
+  // cada 5 minutos vuelve a pedir la ruta para actualizar el tráfico
+  setInterval(function(){ if(R && navigator.onLine && Date.now()-R.lastCalc>300000){ R.lastCalc=Date.now(); calcRoute(R.dest); } },30000);
+
+  /* ---- voz en español ---- */
+  var voiceReady=false;
+  function unlockVoice(){ return; if(voiceReady||!('speechSynthesis' in window))return; try{var u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u);voiceReady=true;}catch(e){} }
+  function say(t){
+    return;   // la voz está desactivada: solo suena la música
+    if(!voiceOn||!t||!('speechSynthesis' in window)) return;
+    try{ var u=new SpeechSynthesisUtterance(t); u.lang='es-CO';
+      var v=speechSynthesis.getVoices().filter(function(x){return /^es/i.test(x.lang);});
+      var pick=v.filter(function(x){return /CO|MX|419|US/.test(x.lang);})[0]||v[0]; if(pick)u.voice=pick;
+      u.rate=1; speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(e){}
+  }
+  $('mCenter').onclick=function(){follow=true; if(S.lat!=null&&map)map.setView([S.lat,S.lon],R?17:16); else note('Activa el GPS con el botón de arriba ("Modo demo") para ver tu posición.');};
+  $('mTraffic').onclick=function(){ if(!map||!trafficLy)return; var on=!map.hasLayer(trafficLy); if(on)trafficLy.addTo(map); else map.removeLayer(trafficLy); lsSet('tt_traffic',on?'1':'0'); this.setAttribute('aria-pressed',on); };
+  window.addEventListener('resize',function(){ if(map) setTimeout(function(){map.invalidateSize();},150); });
+  window.addEventListener('online',function(){ if(key()&&!map) navInit(); });
+  navInit();
+
+
+
+  /* ======================================================
+     Respaldo y restauración de datos
+     ====================================================== */
+  var BK_KEYS=['helloName','radio_v','radio_favs','musicSrc','clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
+  function bkMake(){var o={app:'tablero-orlando',v:1,fecha:new Date().toISOString(),datos:{}};BK_KEYS.forEach(function(k){var v=lsGet(k);if(v!==null)o.datos[k]=v;});return JSON.stringify(o);}
+  function bkMsg(t){$('bkMsg').textContent=t;}
+  function bkApply(txt){
+    try{
+      txt=(txt||'').trim(); if(txt && txt.charAt(0)!=='{') txt=decodeURIComponent(escape(atob(txt)));
+      var o=JSON.parse(txt); if(!o||o.app!=='tablero-orlando'||!o.datos) throw 0;
+      Object.keys(o.datos).forEach(function(k){ if(BK_KEYS.indexOf(k)>-1) lsSet(k,o.datos[k]); });
+      bkMsg('Respaldo restaurado. Recargando…'); setTimeout(function(){location.reload();},900);
+    }catch(e){ bkMsg('Ese respaldo no es válido. Revisa que copiaste el código completo.'); }
+  }
+  $('bkSave').onclick=function(){
+    if(NATIVE){ nativePost({cmd:'share',name:'respaldo-tablero-orlando-'+ymd(new Date())+'.json',text:bkMake()}); bkMsg('Elige dónde guardarlo: Archivos (iCloud Drive), correo o Notas.'); return; }
+    try{
+      var blob=new Blob([bkMake()],{type:'application/json'}), a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download='respaldo-tablero-orlando-'+ymd(new Date())+'.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      bkMsg('Listo. Guárdalo en Archivos (iCloud Drive) o envíatelo por correo. Si no se descargó, usa "Copiar código".');
+    }catch(e){ bkMsg('Este navegador no deja descargar. Usa "Copiar código".'); }
+  };
+  $('bkCopy').onclick=function(){
+    var code=btoa(unescape(encodeURIComponent(bkMake())));
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(code).then(function(){bkMsg('Código copiado. Pégalo en Notas o en un mensaje para ti mismo.');},
+        function(){ $('bkPasteBox').hidden=false; $('bkPaste').value=code; bkMsg('Copia el código del recuadro y guárdalo en Notas.'); });
+    } else { $('bkPasteBox').hidden=false; $('bkPaste').value=code; bkMsg('Copia el código del recuadro y guárdalo en Notas.'); }
+  };
+  $('bkLoad').onclick=function(){ $('bkPasteBox').hidden=false; $('bkPaste').value=''; $('bkPaste').focus(); bkMsg('Pega el código o elige el archivo del respaldo.'); };
+  $('bkFileBtn').onclick=function(){ $('bkFile').click(); };
+  $('bkFile').onchange=function(){ var f=this.files&&this.files[0]; if(!f)return; var r=new FileReader(); r.onload=function(){bkApply(r.result);}; r.readAsText(f); };
+  $('bkApply').onclick=function(){ bkApply($('bkPaste').value); };
+  // pide al navegador que no borre estos datos por su cuenta (si lo permite)
+  try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+
+  /* Funciona sin internet una vez instalada */
+  if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){} }
+
+  /* ---------- abrir la ruta en Waze o Google Maps ---------- */
+  function extNav(kind){
+    var d=window.navDest&&window.navDest(); if(!d) return;
+    var u = kind==='waze' ? 'https://waze.com/ul?ll='+d.lat+','+d.lon+'&navigate=yes'
+          : 'https://www.google.com/maps/dir/?api=1&destination='+d.lat+','+d.lon+'&travelmode=driving';
+    if(NATIVE) nativePost({cmd:'open',url:u}); else window.open(u,'_blank');
+  }
+  $('tWaze').onclick=function(){extNav('waze');};
+  $('tGmaps').onclick=function(){extNav('gmaps');};
+
+  /* ---------- escáner OBD (solo en la app) ---------- */
+  if(NATIVE){
+    $('obdSet').hidden=false;
+    var OBD={state:'off'};
+    function oSet(id,v,cls){ var e=$(id); e.querySelector('strong').textContent=v; e.className=cls||''; }
+    window.__obd=function(d){
+      OBD=d||{};
+      var on=OBD.state==='connected';
+      $('obdRow').hidden=!on;
+      if(on){
+        if(OBD.speed!=null){ S.speed=OBD.speed; S.obdAt=Date.now(); }
+        oSet('oRpm', OBD.rpm!=null?Math.round(OBD.rpm):'--');
+        oSet('oTemp', OBD.coolant!=null?Math.round(OBD.coolant):'--', OBD.coolant>=108?'crit':OBD.coolant>=102?'warn':'');
+        oSet('oVolt', OBD.volt!=null?OBD.volt.toFixed(1):'--', OBD.volt!=null&&(OBD.volt<11.8||OBD.volt>15)?'warn':'');
+        $('oFuel').hidden=OBD.fuel==null; if(OBD.fuel!=null) oSet('oFuel', Math.round(OBD.fuel));
+        renderCar();
+      }
+      var M={off:'Bluetooth apagado. Actívalo en Configuración del iPad.',unauthorized:'La app no tiene permiso de Bluetooth. Actívalo en Configuración → Tablero Orlando.',
+        idle:'Conecta el escáner al carro, enciende el motor y toca Buscar.',scanning:'Buscando… toca tu escáner en la lista (suele llamarse IOS-Vlink, vLinker u OBD).',
+        connecting:'Conectando con '+(OBD.name||'el escáner')+'…',initializing:'Conectado a '+(OBD.name||'el escáner')+'. Preparando la lectura…',
+        connected:'Conectado a '+(OBD.name||'el escáner')+'.'+(OBD.proto?' Protocolo: '+OBD.proto+'.':''),
+        disconnected:'Se desconectó '+(OBD.name||'el escáner')+'. Se reconecta solo cuando enciendas el carro.',error:'Error: '+(OBD.error||'no responde')+'.'};
+      $('obdMsg').textContent=M[OBD.state]||'';
+      var box=$('obdList'); box.innerHTML='';
+      if(OBD.state==='scanning') (OBD.devices||[]).forEach(function(dv){
+        var b=document.createElement('button'); b.textContent=dv.name; var sp=document.createElement('span'); sp.textContent=dv.likely?'probable escáner':'';
+        b.appendChild(sp); b.onclick=function(){nativePost({cmd:'obd.connect',id:dv.id});}; box.appendChild(b);
+      });
+    };
+    $('obdScan').onclick=function(){nativePost({cmd:'obd.scan'});};
+    $('obdForget').onclick=function(){nativePost({cmd:'obd.forget'});};
+    nativePost({cmd:'obd.start'});
+    if(S.demo) setTimeout(function(){ if(S.demo) $('modeBtn').click(); },400);   // en la app, el GPS arranca solo
+  }
+
+  renderCar(); renderMusic(); net(); drawMap(); poll();
+  if(NATIVE) nativePost({cmd:'ready'});
+})();
+</script>
+</body>
+</html>

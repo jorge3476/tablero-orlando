@@ -60,6 +60,17 @@ body.night .ctitle{color:var(--muted)}
 .carbox img.fade{opacity:0}
 .carbox{position:relative}
 .trip{display:flex;gap:26px;font-variant-numeric:tabular-nums}
+.obd{display:flex;gap:18px;justify-content:center;font-variant-numeric:tabular-nums;margin-top:6px}
+.obd div{text-align:center}.obd strong{display:block;font-family:var(--display);font-size:20px;font-weight:600}
+.obd .warn strong{color:var(--warn)}.obd .crit strong{color:var(--crit)}
+#hello{position:fixed;inset:0;z-index:999;background:#0b0d10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .6s ease}
+#hello.out{opacity:0;pointer-events:none}
+#hello .hi{font-family:var(--display);font-weight:600;font-size:clamp(44px,9vw,84px);letter-spacing:.02em;color:#e8edf2;opacity:0;transform:translateY(10px);animation:hiIn .7s .15s ease forwards}
+#hello .sub{font-size:16px;letter-spacing:.2em;text-transform:uppercase;color:#7d8894;opacity:0;animation:hiIn .7s .45s ease forwards}
+@keyframes hiIn{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#hello .hi,#hello .sub{animation:none;opacity:1;transform:none}}
+.obdlist button{display:block;width:100%;text-align:left;margin-top:6px;background:#1a2027;border:1px solid var(--line);border-radius:10px;color:var(--text);font:600 15px var(--body);padding:10px 12px}
+.obdlist button span{color:var(--muted);font-weight:400;font-size:13px;margin-left:8px}
 .trip div{text-align:center}.trip strong{display:block;font-family:var(--display);font-size:26px;font-weight:600}
 /* navegación */
 .nav{grid-area:nv;gap:10px}
@@ -218,6 +229,7 @@ body.night .ctrl button.play{color:#020a12}
 </style>
 </head>
 <body>
+<div id="hello" aria-hidden="true"><div class="hi">Hola <span id="helloName">Alfonso</span></div><div class="sub">Chevrolet Orlando</div></div>
 <div class="app">
   <header>
     <b>CHEVROLET ORLANDO · 2013</b>
@@ -232,6 +244,7 @@ body.night .ctrl button.play{color:#020a12}
       <img id="carImg" alt="Chevrolet Orlando" src="cars/orlando-principal.webp" draggable="false">
     </div>
     <div class="trip"><div><strong id="tripKm">0.0</strong><span class="label">Viaje km</span></div><div><strong id="gpsState">Demo</strong><span class="label">Fuente</span></div></div>
+    <div class="obd" id="obdRow" hidden><div id="oRpm"><strong>--</strong><span class="label">RPM</span></div><div id="oTemp"><strong>--</strong><span class="label">Motor °C</span></div><div id="oVolt"><strong>--</strong><span class="label">Batería V</span></div><div id="oFuel" hidden><strong>--</strong><span class="label">Tanque %</span></div></div>
   </section>
 
   <section class="card nav" aria-label="Navegación">
@@ -243,7 +256,7 @@ body.night .ctrl button.play{color:#020a12}
       <div class="note" id="mapNote">Pon tu clave de TomTom en Ajustes para ver el mapa y navegar aquí.</div>
       <div class="results" id="results" hidden></div>
     </div>
-    <div class="tripbar" id="tripBar" hidden><div><span class="label">Llegada</span> <strong id="tEta">--:--</strong> <span id="tSum"></span><div class="psub" id="tTraffic"></div></div><button class="btn sm" id="tEnd">Terminar</button></div>
+    <div class="tripbar" id="tripBar" hidden><div><span class="label">Llegada</span> <strong id="tEta">--:--</strong> <span id="tSum"></span><div class="psub" id="tTraffic"></div></div><span class="hr"><button class="btn sm" id="tWaze">Waze</button><button class="btn sm" id="tGmaps">Google</button><button class="btn sm" id="tEnd">Terminar</button></span></div>
     <div class="favs" id="favs"></div>
     <div class="dest"><input id="destIn" type="search" placeholder="¿A dónde vamos?" autocomplete="off" enterkeyhint="search" aria-label="Destino"><button class="btn solid" id="goBtn">Buscar</button><button class="btn" id="favAdd" aria-label="Guardar destino favorito">★</button></div>
   </section>
@@ -303,12 +316,21 @@ body.night .ctrl button.play{color:#020a12}
     <div><label for="plate">Último dígito de la placa</label><input id="plate" type="number" inputmode="numeric" min="0" max="9"></div>
     <div><label for="tank">Tanque (galones)</label><input id="tank" type="number" inputmode="decimal"></div>
   </div>
+  <label for="helloIn">Nombre para el saludo al abrir</label>
+  <input id="helloIn" type="text" autocomplete="off" placeholder="Alfonso">
   <label for="mainCity">Ciudad principal para pico y placa</label>
   <select id="mainCity"></select>
   <label for="clock24">Formato de hora</label>
   <select id="clock24"><option value="0">12 horas (1:20 p. m.)</option><option value="1">24 horas (13:20)</option></select>
   <label for="nightMode">Modo noche</label>
   <select id="nightMode"><option value="auto">Automático (6:00 p. m. a 6:00 a. m.)</option><option value="on">Siempre</option><option value="off">Nunca</option></select>
+
+  <div id="obdSet" hidden>
+  <h3>Escáner OBD</h3>
+  <p id="obdMsg">Conecta el escáner al carro, enciende el motor y toca Buscar.</p>
+  <div class="row" style="justify-content:flex-start;margin-top:8px"><button class="btn" id="obdScan">Buscar escáner</button><button class="btn ghost" id="obdForget">Olvidar escáner</button></div>
+  <div class="obdlist" id="obdList"></div>
+  </div>
 
   <h3>Documentos</h3>
   <p>Te aviso desde dos días antes de que venzan.</p>
@@ -383,6 +405,18 @@ body.night .ctrl button.play{color:#020a12}
   function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
   function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
 
+  /* ---------- app nativa (iPad): puente con Swift ---------- */
+  var NATIVE=!!(window.NATIVE&&window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.native);
+  function nativePost(o){ try{ window.webkit.messageHandlers.native.postMessage(o); }catch(e){} }
+
+  /* ---------- saludo al abrir ---------- */
+  (function(){
+    var n=(lsGet('helloName')||'Alfonso').trim()||'Alfonso', h=$('hello');
+    $('helloName').textContent=n; if(NATIVE) nativePost({cmd:'hello',name:n});
+    function out(){ h.classList.add('out'); setTimeout(function(){h.remove();},700); }
+    setTimeout(out, 1900); h.addEventListener('click', out);
+  })();
+
   /* ---------- estado local (todo esto funciona sin internet) ---------- */
   var TANK = parseFloat(lsGet('tank')) || 16.9;   // ~64 L; cámbialo en Ajustes
   var S = {demo:true, speed:0, trip:0, fuel:parseFloat(lsGet('fuel'))||11.2, kmgal:parseFloat(lsGet('kmgal'))||35};
@@ -400,7 +434,7 @@ body.night .ctrl button.play{color:#020a12}
     $('galkm').textContent = (1/S.kmgal).toFixed(3);
     $('modeBtn').setAttribute('aria-pressed', S.demo);
     $('modeBtn').textContent = S.demo ? 'Modo demo' : 'GPS en vivo';
-    $('gpsState').textContent = S.demo ? 'Demo' : 'GPS';
+    $('gpsState').textContent = (S.obdAt&&Date.now()-S.obdAt<4000) ? 'OBD' : S.demo ? 'Demo' : 'GPS';
   }
 
   var target = 40, tick = 0;
@@ -424,7 +458,7 @@ body.night .ctrl button.play{color:#020a12}
     if(S.demo){
       if(!navigator.geolocation){return;}
       try{ watch = navigator.geolocation.watchPosition(function(p){
-        S.demo=false; S.speed=Math.max(0,(p.coords.speed||0)*3.6); S.lat=p.coords.latitude; S.lon=p.coords.longitude; S.acc=p.coords.accuracy; if(p.coords.heading!=null&&!isNaN(p.coords.heading)&&S.speed>3)S.heading=p.coords.heading; renderCar(); if(window.navOnFix)window.navOnFix();
+        S.demo=false; if(!(S.obdAt&&Date.now()-S.obdAt<4000)) S.speed=Math.max(0,(p.coords.speed||0)*3.6); S.lat=p.coords.latitude; S.lon=p.coords.longitude; S.acc=p.coords.accuracy; if(p.coords.heading!=null&&!isNaN(p.coords.heading)&&S.speed>3)S.heading=p.coords.heading; renderCar(); if(window.navOnFix)window.navOnFix();
       },function(){S.demo=true;$('gpsState').textContent='Sin permiso';},{enableHighAccuracy:true,maximumAge:1000}); }catch(e){}
     } else { if(watch!==null){navigator.geolocation.clearWatch(watch);} S.demo=true; renderCar(); }
   };
@@ -614,7 +648,18 @@ body.night .ctrl button.play{color:#020a12}
   lsSet('radio_v','3');
   function saveFav(){lsSet('radio_favs',JSON.stringify(RFAV));}
   saveFav();
-  var audio=new Audio(); audio.preload='none';
+  function NativeAudio(){   // en la app, la radio la toca iOS: sigue con pantalla bloqueada o Waze encima
+    var self=this, L={}; this.src=''; this.paused=true; this.preload='none'; this._title='';
+    this.addEventListener=function(t,f){(L[t]=L[t]||[]).push(f);};
+    this.play=function(){ self.paused=false;
+      var list=RFAV.filter(function(x){return x.url;}).map(function(x){return {id:x.id,name:x.name.replace(/^Big R\s*·\s*/,''),url:x.url};});
+      var idx=R_CUR?list.findIndex(function(x){return x.id===R_CUR.id;}):0;
+      nativePost({cmd:'radio.play',url:self.src,title:self._title,list:list,index:Math.max(0,idx)}); return Promise.resolve(); };
+    this.pause=function(){ self.paused=true; nativePost({cmd:'radio.stop'}); };
+    this.removeAttribute=function(){ self.src=''; }; this.load=function(){};
+    window.__nativeAudioEvent=function(t){ (L[t]||[]).forEach(function(f){try{f();}catch(e){}}); };
+  }
+  var audio=NATIVE?new NativeAudio():new Audio(); audio.preload='none';
   var R_CUR=null, R_STATE='stop';   // stop | loading | play | error
   window.MUSIC_SRC=lsGet('musicSrc')==='radio'?'radio':'sp';
 
@@ -727,7 +772,7 @@ body.night .ctrl button.play{color:#020a12}
     if(window.spPauseIfPlaying) window.spPauseIfPlaying();
     R_CUR=st; R_STATE='loading'; renderRadio();
     if(!st.url){ resolveSt(st).then(function(){ if(R_CUR===st) radioPlay(st); }).catch(function(){ if(R_CUR===st){R_STATE='error';renderRadio();} }); return; }
-    audio.src=st.url;
+    audio.src=st.url; audio._title=st.name.replace(/^Big R\s*·\s*/,'');
     var p=audio.play(); if(p&&p.catch) p.catch(function(){ R_STATE='error'; renderRadio(); });
     setMediaSession(st);
     if(st.uuid){ try{ rbFetch('/json/url/'+st.uuid).catch(function(){}); }catch(e){} }   // cuenta la escucha en Radio Browser
@@ -738,7 +783,10 @@ body.night .ctrl button.play{color:#020a12}
     if(!RFAV.length) return; var i=R_CUR?RFAV.findIndex(function(x){return x.id===R_CUR.id;}):-1;
     radioPlay(RFAV[(i+d+RFAV.length)%RFAV.length]);
   }
-  window.radioStep=radioStep; window.radioToggle=radioToggle;
+  window.radioStep=radioStep; window.radioToggle=radioToggle; window.__radioStop=function(){ if(R_STATE!=='stop') radioStop(); };
+  // cambios hechos desde la pantalla bloqueada (app)
+  window.__nativeStation=function(id){ var st=RFAV.filter(function(x){return x.id===id;})[0]; if(st){ R_CUR=st; if(R_STATE==='stop'||R_STATE==='error') R_STATE='loading'; renderRadio(); drawRlist(); } };
+  window.__nativeRadioStopped=function(){ R_STATE='stop'; renderRadio(); };
   audio.addEventListener('playing',function(){R_STATE='play';renderRadio();});
   audio.addEventListener('waiting',function(){ if(R_STATE!=='stop'){R_STATE='loading';renderRadio();} });
   audio.addEventListener('error',function(){ if(R_STATE!=='stop'){R_STATE='error';renderRadio();} });
@@ -1063,6 +1111,7 @@ body.night .ctrl button.play{color:#020a12}
     var p=parseInt($('plate').value,10); if(p>=0&&p<=9){PLATE=p;lsSet('plate',p);}
     MAIN=$('mainCity').value; lsSet('mainCity',MAIN); VIEW=MAIN;
     lsSet('night',$('nightMode').value); lsSet('clock24',$('clock24').value);
+    var hn=$('helloIn').value.trim(); if(hn){lsSet('helloName',hn); if(NATIVE) nativePost({cmd:'hello',name:hn});}
     ['soat','rtm'].forEach(function(k){var v=$(k+'D').value; if(v!==DOCS[k].vence){DOCS[k].vence=v;DOCS[k].snooze='';delete SESS[k];}});
     saveDocs();
     var o=parseFloat($('odoIn').value);
@@ -1076,7 +1125,7 @@ body.night .ctrl button.play{color:#020a12}
     $('redir').textContent=REDIR; $('cid').value=lsGet('sp_cid')||''; $('tank').value=TANK; $('plate').value=PLATE;
     $('mainCity').value=MAIN; $('nightMode').value=lsGet('night')||'auto'; $('clock24').value=lsGet('clock24')==='1'?'1':'0';
     $('soatD').value=DOCS.soat.vence; $('rtmD').value=DOCS.rtm.vence;
-    $('odoIn').value=MANT.odo==null?'':Math.round(MANT.odo); $('ttKey').value=lsGet('tt_key')||''; drawMant(); openDlg(sd);
+    $('helloIn').value=lsGet('helloName')||'Alfonso'; $('odoIn').value=MANT.odo==null?'':Math.round(MANT.odo); $('ttKey').value=lsGet('tt_key')||''; drawMant(); openDlg(sd);
   };
   $('sClose').onclick=function(){sd.close();};
   $('sSave').onclick=function(){saveSettings();sd.close();showAlerts();};
@@ -1173,7 +1222,7 @@ body.night .ctrl button.play{color:#020a12}
     if(follow) map.setView(p, R?17:Math.max(map.getZoom(),15), {animate:true});
     if(R) guide();
   }
-  window.navOnFix=navOnFix;
+  window.navOnFix=navOnFix; window.navDest=function(){return R&&R.dest||null;};
 
   /* ---- búsqueda de destino ---- */
   function navSearch(){
@@ -1309,7 +1358,7 @@ body.night .ctrl button.play{color:#020a12}
   /* ======================================================
      Respaldo y restauración de datos
      ====================================================== */
-  var BK_KEYS=['radio_v','radio_favs','musicSrc','clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
+  var BK_KEYS=['helloName','radio_v','radio_favs','musicSrc','clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
   function bkMake(){var o={app:'tablero-orlando',v:1,fecha:new Date().toISOString(),datos:{}};BK_KEYS.forEach(function(k){var v=lsGet(k);if(v!==null)o.datos[k]=v;});return JSON.stringify(o);}
   function bkMsg(t){$('bkMsg').textContent=t;}
   function bkApply(txt){
@@ -1321,6 +1370,7 @@ body.night .ctrl button.play{color:#020a12}
     }catch(e){ bkMsg('Ese respaldo no es válido. Revisa que copiaste el código completo.'); }
   }
   $('bkSave').onclick=function(){
+    if(NATIVE){ nativePost({cmd:'share',name:'respaldo-tablero-orlando-'+ymd(new Date())+'.json',text:bkMake()}); bkMsg('Elige dónde guardarlo: Archivos (iCloud Drive), correo o Notas.'); return; }
     try{
       var blob=new Blob([bkMake()],{type:'application/json'}), a=document.createElement('a');
       a.href=URL.createObjectURL(blob); a.download='respaldo-tablero-orlando-'+ymd(new Date())+'.json';
@@ -1345,7 +1395,53 @@ body.night .ctrl button.play{color:#020a12}
   /* Funciona sin internet una vez instalada */
   if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){} }
 
+  /* ---------- abrir la ruta en Waze o Google Maps ---------- */
+  function extNav(kind){
+    var d=window.navDest&&window.navDest(); if(!d) return;
+    var u = kind==='waze' ? 'https://waze.com/ul?ll='+d.lat+','+d.lon+'&navigate=yes'
+          : 'https://www.google.com/maps/dir/?api=1&destination='+d.lat+','+d.lon+'&travelmode=driving';
+    if(NATIVE) nativePost({cmd:'open',url:u}); else window.open(u,'_blank');
+  }
+  $('tWaze').onclick=function(){extNav('waze');};
+  $('tGmaps').onclick=function(){extNav('gmaps');};
+
+  /* ---------- escáner OBD (solo en la app) ---------- */
+  if(NATIVE){
+    $('obdSet').hidden=false;
+    var OBD={state:'off'};
+    function oSet(id,v,cls){ var e=$(id); e.querySelector('strong').textContent=v; e.className=cls||''; }
+    window.__obd=function(d){
+      OBD=d||{};
+      var on=OBD.state==='connected';
+      $('obdRow').hidden=!on;
+      if(on){
+        if(OBD.speed!=null){ S.speed=OBD.speed; S.obdAt=Date.now(); }
+        oSet('oRpm', OBD.rpm!=null?Math.round(OBD.rpm):'--');
+        oSet('oTemp', OBD.coolant!=null?Math.round(OBD.coolant):'--', OBD.coolant>=108?'crit':OBD.coolant>=102?'warn':'');
+        oSet('oVolt', OBD.volt!=null?OBD.volt.toFixed(1):'--', OBD.volt!=null&&(OBD.volt<11.8||OBD.volt>15)?'warn':'');
+        $('oFuel').hidden=OBD.fuel==null; if(OBD.fuel!=null) oSet('oFuel', Math.round(OBD.fuel));
+        renderCar();
+      }
+      var M={off:'Bluetooth apagado. Actívalo en Configuración del iPad.',unauthorized:'La app no tiene permiso de Bluetooth. Actívalo en Configuración → Tablero Orlando.',
+        idle:'Conecta el escáner al carro, enciende el motor y toca Buscar.',scanning:'Buscando… toca tu escáner en la lista (suele llamarse IOS-Vlink, vLinker u OBD).',
+        connecting:'Conectando con '+(OBD.name||'el escáner')+'…',initializing:'Conectado a '+(OBD.name||'el escáner')+'. Preparando la lectura…',
+        connected:'Conectado a '+(OBD.name||'el escáner')+'.'+(OBD.proto?' Protocolo: '+OBD.proto+'.':''),
+        disconnected:'Se desconectó '+(OBD.name||'el escáner')+'. Se reconecta solo cuando enciendas el carro.',error:'Error: '+(OBD.error||'no responde')+'.'};
+      $('obdMsg').textContent=M[OBD.state]||'';
+      var box=$('obdList'); box.innerHTML='';
+      if(OBD.state==='scanning') (OBD.devices||[]).forEach(function(dv){
+        var b=document.createElement('button'); b.textContent=dv.name; var sp=document.createElement('span'); sp.textContent=dv.likely?'probable escáner':'';
+        b.appendChild(sp); b.onclick=function(){nativePost({cmd:'obd.connect',id:dv.id});}; box.appendChild(b);
+      });
+    };
+    $('obdScan').onclick=function(){nativePost({cmd:'obd.scan'});};
+    $('obdForget').onclick=function(){nativePost({cmd:'obd.forget'});};
+    nativePost({cmd:'obd.start'});
+    if(S.demo) setTimeout(function(){ if(S.demo) $('modeBtn').click(); },400);   // en la app, el GPS arranca solo
+  }
+
   renderCar(); renderMusic(); net(); drawMap(); poll();
+  if(NATIVE) nativePost({cmd:'ready'});
 })();
 </script>
 </body>
