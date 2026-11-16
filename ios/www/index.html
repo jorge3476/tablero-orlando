@@ -18,11 +18,29 @@
 /* Layout: horizontal = 3 columnas (carro | navegación | música) + franja de gasolina.
    Vertical = carro y música arriba, navegación al centro, gasolina abajo. */
 :root{
-  --bg:#0b0d10; --panel:#14181d; --line:#232a32; --text:#eef1f4; --muted:#8a94a0;
+  --bg:#0b0d10; --panel:#14181d; --line:var(--track); --text:#eef1f4; --muted:#8a94a0;
   --accent:#3ea6ff; --good:#38d39f; --warn:#ffb020; --crit:#ff5c5c;
   --display:'Barlow Condensed','Arial Narrow',sans-serif; --body:'Barlow',system-ui,sans-serif;
+  --chip:#1a2027; --field:#0e1319; --track:#232a32; --sel:#232b34; --chipOn:#14273a; --onAccent:#04121f;
+  --glass:rgba(12,16,20,.92); --title:#b6bfc9; --spglow:#162433;
   color-scheme:dark;
 }
+/* Tema claro (gris) para el día */
+body.light{--bg:#dde2e7;--panel:#f4f6f8;--line:#c8cfd7;--text:#11161b;--muted:#56606b;--accent:#0a6bc9;--good:#11895a;--warn:#b06600;--crit:#cc3434;
+  --chip:#e7ebef;--field:#ffffff;--track:#d2d8de;--sel:#ffffff;--chipOn:#d9e9fa;--onAccent:#ffffff;--glass:rgba(244,246,248,.94);--title:#3f4852;--spglow:#d6e3f0;color-scheme:light}
+body.light .carbox img{filter:drop-shadow(0 14px 10px rgba(0,0,0,.22))}
+body.light .art{background:linear-gradient(135deg,#cfe0f2,#e9eef4 55%,#ddd6ee)}
+body.light .art svg{color:#0a6bc9}
+body.light .pl img,body.light .pl .ph,body.light .rrow .ph{background:linear-gradient(135deg,#b9d3ee,#d6cdec)}
+body.light .pl .ph.txt,body.light .rrow .ph.txt{color:#1d3b57}
+body.light dialog::backdrop{background:rgba(30,36,44,.35)}
+/* pico y placa centrado */
+.pbody{align-items:center;text-align:center}
+.pyp .top{justify-content:center}
+/* temperatura en el encabezado */
+#temp{font-family:var(--display);font-size:22px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+#temp small{font-family:var(--body);font-size:15px;font-weight:400;color:var(--muted);margin-left:4px}
+.btn.icon{font-size:26px;min-width:64px;padding:0 14px}
 *{box-sizing:border-box;margin:0}
 [hidden]{display:none!important}
 html,body{height:100%}
@@ -47,12 +65,12 @@ header b{white-space:nowrap}
 .dot.ok{background:var(--good)}.dot.bad{background:var(--crit)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;min-height:0;display:flex;flex-direction:column}
 .label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.ctitle{display:block;text-align:center;font-size:13px;font-weight:700;color:#b6bfc9;letter-spacing:.16em}
+.ctitle{display:block;text-align:center;font-size:13px;font-weight:700;color:var(--title);letter-spacing:.16em}
 body.night .ctitle{color:var(--muted)}
 #clock{font-family:var(--display);font-size:24px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
 #date{font-size:15px;color:var(--muted);white-space:nowrap}
-@media (orientation:portrait){#date{display:none}}
-.speedcard{grid-area:sp;align-items:center;justify-content:space-between;background:radial-gradient(120% 80% at 50% 100%,#162433 0%,var(--panel) 60%)}
+@media (orientation:portrait){#date{display:none}#netTxt{display:none}}
+.speedcard{grid-area:sp;align-items:center;justify-content:space-between;background:radial-gradient(120% 80% at 50% 100%,var(--spglow) 0%,var(--panel) 60%)}
 .speed{font-family:var(--display);font-weight:600;font-size:clamp(84px,16vh,150px);line-height:.9;font-variant-numeric:tabular-nums;text-align:center}
 .unit{font-family:var(--display);font-size:22px;color:var(--muted);letter-spacing:.12em;text-align:center}
 .carbox{width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:4px 0}
@@ -69,60 +87,63 @@ body.night .ctitle{color:var(--muted)}
 #hello .sub{font-size:16px;letter-spacing:.2em;text-transform:uppercase;color:#7d8894;opacity:0;animation:hiIn .7s .45s ease forwards}
 @keyframes hiIn{to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){#hello .hi,#hello .sub{animation:none;opacity:1;transform:none}}
-.obdlist button{display:block;width:100%;text-align:left;margin-top:6px;background:#1a2027;border:1px solid var(--line);border-radius:10px;color:var(--text);font:600 15px var(--body);padding:10px 12px}
+.obdlist button{display:block;width:100%;text-align:left;margin-top:6px;background:var(--chip);border:1px solid var(--line);border-radius:10px;color:var(--text);font:600 15px var(--body);padding:10px 12px}
 .obdlist button span{color:var(--muted);font-weight:400;font-size:13px;margin-left:8px}
 .trip div{text-align:center}.trip strong{display:block;font-family:var(--display);font-size:26px;font-weight:600}
 /* navegación */
 .nav{grid-area:nv;gap:10px}
-.map{flex:1;min-height:60px;border-radius:12px;position:relative;overflow:hidden;background:#0e1319;border:1px solid var(--line)}
+.map{flex:1;min-height:60px;border-radius:12px;position:relative;overflow:hidden;background:var(--field);border:1px solid var(--line)}
 .map canvas{width:100%;height:100%;display:block}
-#tmap{position:absolute;inset:0;background:#0e1319}
-#tmap .leaflet-control-attribution{background:rgba(11,13,16,.7);color:var(--muted);font-size:10px}
+#tmap{position:absolute;inset:0;background:var(--field)}
+#tmap .leaflet-control-attribution{background:var(--glass);color:var(--muted);font-size:10px}
 #tmap .leaflet-control-attribution a{color:var(--muted)}
 .carpin{width:34px;height:34px;display:grid;place-items:center}
 .carpin i{display:block;width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-bottom:28px solid var(--accent);filter:drop-shadow(0 0 6px rgba(62,166,255,.8))}
 .destpin{width:18px;height:18px;border-radius:50%;background:var(--crit);border:3px solid #fff}
-.guide{position:absolute;z-index:500;left:10px;right:10px;top:10px;display:flex;gap:12px;align-items:center;background:rgba(12,16,20,.92);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.guide{position:absolute;z-index:500;left:10px;right:10px;top:10px;display:flex;gap:12px;align-items:center;background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
 .gman{font-size:40px;line-height:1;width:48px;text-align:center;color:var(--accent);font-weight:700}
 .gdist{font-family:var(--display);font-size:30px;font-weight:600;line-height:1}
 .gmsg{font-size:16px;color:var(--text);line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .mapbtns{position:absolute;z-index:500;right:10px;bottom:22px;display:flex;flex-direction:row;gap:8px}
 body.routing .dest,body.routing .favs{display:none}
-.mapbtns button{min-width:48px;min-height:48px;border-radius:12px;border:1px solid var(--line);background:rgba(20,24,29,.92);color:var(--text);font:600 14px var(--body);padding:0 8px}
+.mapbtns button{min-width:48px;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--glass);color:var(--text);font:600 14px var(--body);padding:0 8px}
 .mapbtns button[aria-pressed="false"]{color:var(--muted);text-decoration:line-through}
-.results{position:absolute;z-index:600;left:10px;right:10px;bottom:10px;max-height:70%;overflow:auto;background:rgba(12,16,20,.96);border:1px solid var(--line);border-radius:14px;padding:6px}
+.results{position:absolute;z-index:600;left:10px;right:10px;bottom:10px;max-height:70%;overflow:auto;background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:6px}
 .results button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);color:var(--text);font:600 16px var(--body);padding:12px 10px}
 .results button span{display:block;font-weight:400;font-size:13px;color:var(--muted);margin-top:2px}
 .results button:last-child{border-bottom:0}
 .tripbar{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:15px;color:var(--muted)}
 .tripbar strong{font-family:var(--display);font-size:26px;color:var(--text);font-weight:600}
+.tripbar{flex-wrap:wrap;row-gap:8px}.tripbar>div{white-space:nowrap}
+.tripbar>.hr{flex:1 1 auto;justify-content:flex-end}
+@media (orientation:landscape){.tripbar>.hr{flex-basis:100%}.tripbar>.hr .btn{flex:1;padding:0 6px}}
 #favAdd{min-width:52px;padding:0 12px}
 .map .note{position:absolute;left:12px;bottom:8px;right:12px;font-size:12px;color:var(--muted)}
 .dest{display:flex;gap:8px}
-.dest input{flex:1;min-height:48px;border-radius:12px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 14px;font-size:17px;-webkit-user-select:text;user-select:text;min-width:0}
+.dest input{flex:1;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--field);color:var(--text);padding:0 14px;font-size:17px;-webkit-user-select:text;user-select:text;min-width:0}
 .favs{display:flex;gap:8px;flex-wrap:wrap}
-.fav{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#1a2027}
+.fav{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--chip)}
 .fav button{background:none;border:0;color:var(--text);font:500 15px var(--body);padding:0 14px;min-height:40px}
 .fav button.x{color:var(--muted);padding:0 12px 0 4px}
 .navbtns{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.navbtns button{min-height:54px;border-radius:14px;border:1px solid var(--line);background:#1a2027;color:var(--text);font:600 16px var(--body)}
-.navbtns button:active{background:var(--accent);color:#04121f}
+.navbtns button{min-height:54px;border-radius:14px;border:1px solid var(--line);background:var(--chip);color:var(--text);font:600 16px var(--body)}
+.navbtns button:active{background:var(--accent);color:var(--onAccent)}
 /* música */
 .music{grid-area:mu;gap:8px}
 .art{aspect-ratio:1;max-height:34%;align-self:center;border-radius:14px;background:linear-gradient(135deg,#1d3b57,#0f1b28 55%,#2b2146);display:grid;place-items:center;border:1px solid var(--line);overflow:hidden;position:relative}
 .art svg{width:46%;opacity:.8}.art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .title{font-family:var(--display);font-size:26px;font-weight:600;line-height:1.1;text-wrap:balance;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .artist{color:var(--muted);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bar{height:5px;background:#232a32;border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--accent)}
+.bar{height:5px;background:var(--track);border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--accent)}
 .ctrl{display:flex;justify-content:space-between;align-items:center;margin-top:auto}
-.ctrl button{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);background:#1a2027;color:var(--text);display:grid;place-items:center}
-.ctrl button.play{background:var(--accent);color:#04121f;border-color:var(--accent)}
+.ctrl button{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);background:var(--chip);color:var(--text);display:grid;place-items:center}
+.ctrl button.play{background:var(--accent);color:var(--onAccent);border-color:var(--accent)}
 .ctrl button:active{transform:scale(.94)}
 .ctrl svg{width:30px;height:30px;fill:currentColor}
 .status{font-size:12px;color:var(--muted);min-height:16px}
-.srcsw{align-self:center;display:flex;background:#0e1319;border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.srcsw{align-self:center;display:flex;background:var(--field);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
 .srcsw button{border:0;background:none;color:var(--muted);font:700 13px var(--body);letter-spacing:.12em;text-transform:uppercase;padding:6px 16px;min-height:34px;border-radius:999px}
-.srcsw button[aria-selected="true"]{background:#232b34;color:var(--text)}
+.srcsw button[aria-selected="true"]{background:var(--sel);color:var(--text)}
 .music.radio .bar,.music.radio #plists{display:none}
 .music.radio #art{aspect-ratio:auto;width:100%;max-height:none;height:19%;min-height:64px;align-self:stretch;flex:none;background:#0b0414}
 .music.radio .art svg,.music.radio .art img{display:none}
@@ -132,22 +153,22 @@ body.routing .dest,body.routing .favs{display:none}
 .music.radio{gap:6px}
 .pl.add{justify-content:center;color:var(--accent);border-style:dashed;background:none}
 .music.radio #rlist{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-content:start;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px}
-.rchip{min-height:42px;padding:4px 10px;border-radius:10px;border:1px solid var(--line);background:#1a2027;color:var(--text);font:600 13px var(--body);text-align:left;line-height:1.15;overflow:hidden}
-.rchip.on{border-color:var(--accent);color:var(--accent);background:#14273a}
+.rchip{min-height:42px;padding:4px 10px;border-radius:10px;border:1px solid var(--line);background:var(--chip);color:var(--text);font:600 13px var(--body);text-align:left;line-height:1.15;overflow:hidden}
+.rchip.on{border-color:var(--accent);color:var(--accent);background:var(--chipOn)}
 .rchip.add{color:var(--accent);border-style:dashed;background:none;text-align:center}
 .pl .ph.txt{display:grid;place-items:center;font:700 13px var(--body);color:#cfe3ff}
 .rres{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:34vh;overflow:auto}
-.rrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:6px 8px;background:#0e1319}
+.rrow{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:6px 8px;background:var(--field)}
 .rrow img,.rrow .ph{width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;background:linear-gradient(135deg,#1d3b57,#2b2146)}
 .rrow .ph.txt{display:grid;place-items:center;font:700 13px var(--body);color:#cfe3ff}
 .rrow .rt{flex:1;min-width:0}.rrow .rt b{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:15px}
 .rrow .rt small{color:var(--muted);font-size:12px}
-.rrow button{min-width:44px;min-height:40px;border-radius:10px;border:1px solid var(--line);background:#1a2027;color:var(--text);font-size:17px}
+.rrow button{min-width:44px;min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--chip);color:var(--text);font-size:17px}
 .rrow button.on{color:var(--warn);border-color:var(--warn)}
 .plists{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:6px;overflow:hidden}
 .music.haspl .art{max-height:22%}
 .music.haspl{gap:6px}
-.pl{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:4px 10px 4px 5px;border-radius:12px;border:1px solid var(--line);background:#1a2027;color:var(--text);font:600 15px var(--body);text-align:left}
+.pl{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:4px 10px 4px 5px;border-radius:12px;border:1px solid var(--line);background:var(--chip);color:var(--text);font:600 15px var(--body);text-align:left}
 .pl img,.pl .ph{width:36px;height:36px;border-radius:8px;flex-shrink:0;object-fit:cover;background:linear-gradient(135deg,#1d3b57,#2b2146)}
 .pl span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
 .pl.on{border-color:var(--accent);color:var(--accent)}
@@ -155,20 +176,20 @@ body.routing .dest,body.routing .favs{display:none}
 /* combustible */
 .fuel{grid-area:fu;flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px 18px;padding:12px 18px}
 .gauge{flex:1.4;min-width:180px}
-.gauge .track{height:14px;border-radius:7px;background:#232a32;margin-top:8px;overflow:hidden}
+.gauge .track{height:14px;border-radius:7px;background:var(--track);margin-top:8px;overflow:hidden}
 .gauge .track i{display:block;height:100%;border-radius:7px;background:var(--good);transition:width .6s,background .3s}
 .gauge .ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
 .stat{min-width:88px}.stat strong{display:block;font-family:var(--display);font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
 .stat span{font-size:13px;color:var(--muted)}
 .btn{min-height:52px;align-items:center;justify-content:center;padding:0 20px;border-radius:14px;border:1px solid var(--accent);background:transparent;color:var(--accent);font:600 16px var(--body)}
-.btn.solid{background:var(--accent);color:#04121f}
+.btn.solid{background:var(--accent);color:var(--onAccent)}
 dialog{margin:auto;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:18px;padding:22px;width:min(460px,92vw)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 dialog h2{font-family:var(--display);font-size:26px;margin-bottom:8px}
 dialog p{color:var(--muted);font-size:14px;line-height:1.4}
 dialog label{display:block;margin:12px 0 4px;color:var(--muted);font-size:14px}
-dialog input{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 12px;font-size:16px;-webkit-user-select:text;user-select:text}
-dialog code{display:block;word-break:break-all;background:#0e1319;border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;margin-top:4px;-webkit-user-select:text;user-select:text}
+dialog input{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--line);background:var(--field);color:var(--text);padding:0 12px;font-size:16px;-webkit-user-select:text;user-select:text}
+dialog code{display:block;word-break:break-all;background:var(--field);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;margin-top:4px;-webkit-user-select:text;user-select:text}
 dialog .row{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-wrap:wrap}
 /* pico y placa */
 .pyp{grid-area:pp;padding:12px 16px;gap:4px;border-left:4px solid var(--good);justify-content:center}
@@ -180,8 +201,8 @@ dialog .row{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-
 #ppShow{display:none}.app.nopp #ppShow{display:flex}
 .pyp{flex-direction:row;padding:0;gap:0}
 .pbody{flex:1;min-width:0;padding:12px 16px;display:flex;flex-direction:column;justify-content:center;gap:4px}
-.pcol{flex-shrink:0;width:46px;display:flex;align-items:center;justify-content:center;border:0;border-left:1px solid var(--line);background:#1a2027;color:var(--muted);font-size:26px;border-radius:0 17px 17px 0;cursor:pointer}
-.pcol:active{background:var(--accent);color:#04121f}
+.pcol{flex-shrink:0;width:46px;display:flex;align-items:center;justify-content:center;border:0;border-left:1px solid var(--line);background:var(--chip);color:var(--muted);font-size:26px;border-radius:0 17px 17px 0;cursor:pointer}
+.pcol:active{background:var(--accent);color:var(--onAccent)}
 .pshow{align-self:stretch;margin:-12px 4px -12px -18px;border-left:0;border-right:1px solid var(--line);border-radius:17px 0 0 17px}
 .pyp.warn{border-left-color:var(--warn)}.pyp.crit{border-left-color:var(--crit)}
 .pyp .label{white-space:nowrap}
@@ -197,7 +218,7 @@ dialog .row{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-
 .chip.alert{border-color:var(--warn);color:var(--warn)}.chip.alert.crit{border-color:var(--crit);color:var(--crit)}
 dialog{max-height:88vh;overflow:auto}
 dialog h3{font-family:var(--display);font-size:19px;letter-spacing:.04em;margin:20px 0 2px;color:var(--text)}
-dialog select{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--line);background:#0e1319;color:var(--text);padding:0 10px;font-size:16px}
+dialog select{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--line);background:var(--field);color:var(--text);padding:0 10px;font-size:16px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
 .mrow{display:grid;grid-template-columns:1fr 96px auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
 .mrow input{min-height:42px}.mrow small{display:block;color:var(--muted);font-size:12px}
@@ -211,7 +232,7 @@ dialog select{width:100%;min-height:48px;border-radius:10px;border:1px solid var
 .aitem .more input,.aitem .more select{width:auto;flex:1;min-width:140px}
 #cdlg{width:min(620px,94vw)}
 .clist{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-.clist button{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;background:#1a2027;border:1px solid var(--line);border-radius:12px;color:var(--text);font:600 16px var(--body);padding:10px 14px}
+.clist button{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;background:var(--chip);border:1px solid var(--line);border-radius:12px;color:var(--text);font:600 16px var(--body);padding:10px 14px}
 .clist button span{color:var(--muted);font-weight:400;font-size:13px}
 .clist button[aria-current="true"] span{color:var(--accent)}
 .clist button[aria-current="true"]{border-color:var(--accent)}
@@ -232,8 +253,8 @@ body.night .ctrl button.play{color:#020a12}
 <div id="hello" aria-hidden="true"><div class="hi">Hola <span id="helloName">Alfonso</span></div><div class="sub">Chevrolet Orlando</div></div>
 <div class="app">
   <header>
-    <b>CHEVROLET ORLANDO · 2013</b>
-    <span class="hr"><span id="net"><i class="dot ok" id="netDot"></i><span id="netTxt">En línea</span></span><span id="clock">--:--</span><span id="date"></span></span>
+    <b>CHEVROLET ORLANDO</b>
+    <span class="hr"><span id="net"><i class="dot ok" id="netDot"></i><span id="netTxt">En línea</span></span><span id="clock">--:--</span><span id="date"></span><span id="temp" hidden></span></span>
     <span class="hr"><button class="chip alert" id="alertBtn" hidden>Avisos</button><button class="chip" id="modeBtn" aria-pressed="true">Modo demo</button><button class="chip" id="setBtn" aria-label="Ajustes">Ajustes</button></span>
   </header>
 
@@ -256,7 +277,7 @@ body.night .ctrl button.play{color:#020a12}
       <div class="note" id="mapNote">Pon tu clave de TomTom en Ajustes para ver el mapa y navegar aquí.</div>
       <div class="results" id="results" hidden></div>
     </div>
-    <div class="tripbar" id="tripBar" hidden><div><span class="label">Llegada</span> <strong id="tEta">--:--</strong> <span id="tSum"></span><div class="psub" id="tTraffic"></div></div><span class="hr"><button class="btn sm" id="tWaze">Waze</button><button class="btn sm" id="tGmaps">Google</button><button class="btn sm" id="tEnd">Terminar</button></span></div>
+    <div class="tripbar" id="tripBar" hidden><div><span class="label">Llegada</span> <strong id="tEta">--:--</strong> <span id="tSum"></span><div class="psub" id="tTraffic"></div></div><span class="hr"><button class="btn sm" id="tAmaps" aria-label="Abrir en Apple Maps">Maps</button><button class="btn sm" id="tWaze">Waze</button><button class="btn sm" id="tGmaps">Google</button><button class="btn sm" id="tEnd">Terminar</button></span></div>
     <div class="favs" id="favs"></div>
     <div class="dest"><input id="destIn" type="search" placeholder="¿A dónde vamos?" autocomplete="off" enterkeyhint="search" aria-label="Destino"><button class="btn solid" id="goBtn">Buscar</button><button class="btn" id="favAdd" aria-label="Guardar destino favorito">★</button></div>
   </section>
@@ -296,7 +317,7 @@ body.night .ctrl button.play{color:#020a12}
     <div class="stat"><strong id="range">0</strong><span>km de autonomía</span></div>
     <div class="stat"><strong id="kmgal">0.0</strong><span>km por galón</span></div>
     <div class="stat"><strong id="galkm">0.000</strong><span>galones por km</span></div>
-    <button class="btn" id="refuelBtn" aria-label="Registrar tanqueo">Registrar ⛽️</button>
+    <button class="btn icon" id="refuelBtn" aria-label="Registrar tanqueo" title="Registrar tanqueo">⛽️</button>
   </section>
 </div>
 
@@ -322,8 +343,8 @@ body.night .ctrl button.play{color:#020a12}
   <select id="mainCity"></select>
   <label for="clock24">Formato de hora</label>
   <select id="clock24"><option value="0">12 horas (1:20 p. m.)</option><option value="1">24 horas (13:20)</option></select>
-  <label for="nightMode">Modo noche</label>
-  <select id="nightMode"><option value="auto">Automático (6:00 p. m. a 6:00 a. m.)</option><option value="on">Siempre</option><option value="off">Nunca</option></select>
+  <label for="nightMode">Tema</label>
+  <select id="nightMode"><option value="auto">Automático: claro de día, oscuro de noche (6 p. m. a 6 a. m.)</option><option value="off">Siempre claro</option><option value="dark">Siempre oscuro</option><option value="on">Siempre noche (oscuro y tenue)</option></select>
 
   <div id="obdSet" hidden>
   <h3>Escáner OBD</h3>
@@ -1138,7 +1159,11 @@ body.night .ctrl button.play{color:#020a12}
   var driving=false, slowSecs=0, tk=0;
   function applyNight(){
     var m=lsGet('night')||'auto', h=new Date().getHours();
-    document.body.classList.toggle('night', m==='on' || (m==='auto' && (h>=18||h<6)));
+    var nightHrs=(h>=18||h<6), light=(m==='off')||(m==='auto'&&!nightHrs);
+    document.body.classList.toggle('light', light);
+    document.body.classList.toggle('night', m==='on' || (m==='auto' && nightHrs));
+    var tc=document.querySelector('meta[name=theme-color]'); if(tc) tc.content=light?'#dde2e7':'#0b0d10';
+    if(window.mapTheme) window.mapTheme(light);
   }
   setInterval(function(){
     if(!S.demo){
@@ -1163,12 +1188,12 @@ body.night .ctrl button.play{color:#020a12}
     var r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
     if(r.width<10){return;}
     if(cv.width!==Math.round(r.width*dpr)){cv.width=Math.round(r.width*dpr);cv.height=Math.round(r.height*dpr);}
-    var w=cv.width,h=cv.height; cx.clearRect(0,0,w,h); cx.strokeStyle='#1c2631'; cx.lineWidth=2*dpr;
+    var w=cv.width,h=cv.height; var LT=document.body.classList.contains('light'); cx.clearRect(0,0,w,h); cx.strokeStyle=LT?'#d0d7df':'#1c2631'; cx.lineWidth=2*dpr;
     var off=(S.trip*40*dpr)%(60*dpr);
     for(var x=-60*dpr;x<w+60*dpr;x+=60*dpr){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x+h*.4,h);cx.stroke();}
     for(var y=-off;y<h+60*dpr;y+=60*dpr){cx.beginPath();cx.moveTo(0,y);cx.lineTo(w,y+10*dpr);cx.stroke();}
-    cx.strokeStyle='#3ea6ff';cx.lineWidth=6*dpr;cx.lineCap='round';cx.beginPath();cx.moveTo(w*.5,h*.9);cx.quadraticCurveTo(w*.5,h*.5,w*.72,h*.15);cx.stroke();
-    cx.fillStyle='#fff';cx.beginPath();cx.moveTo(w*.5,h*.72);cx.lineTo(w*.5-12*dpr,h*.72+26*dpr);cx.lineTo(w*.5+12*dpr,h*.72+26*dpr);cx.closePath();cx.fill();
+    cx.strokeStyle=LT?'#0a6bc9':'#3ea6ff';cx.lineWidth=6*dpr;cx.lineCap='round';cx.beginPath();cx.moveTo(w*.5,h*.9);cx.quadraticCurveTo(w*.5,h*.5,w*.72,h*.15);cx.stroke();
+    cx.fillStyle=LT?'#11161b':'#fff';cx.beginPath();cx.moveTo(w*.5,h*.72);cx.lineTo(w*.5-12*dpr,h*.72+26*dpr);cx.lineTo(w*.5+12*dpr,h*.72+26*dpr);cx.closePath();cx.fill();
   }
   window.addEventListener('resize',drawMap);
 
@@ -1200,11 +1225,12 @@ body.night .ctrl button.play{color:#020a12}
       map.on('dragstart',function(){follow=false;});
     } else { map.eachLayer(function(l){map.removeLayer(l);}); carMk=destMk=routeLn=null; }
     var k=encodeURIComponent(key());
-    var base=L.tileLayer('https://api.tomtom.com/map/1/tile/basic/night/{z}/{x}/{y}.png?key='+k+'&language=es-ES',
+    var lightMap=document.body.classList.contains('light'); MAP_LIGHT=lightMap;
+    var base=L.tileLayer('https://api.tomtom.com/map/1/tile/basic/'+(lightMap?'main':'night')+'/{z}/{x}/{y}.png?key='+k+'&language=es-ES',
       {maxZoom:20,maxNativeZoom:20,tileSize:256,attribution:'© TomTom'}).addTo(map);
     base.on('tileerror',function(){ if(navigator.onLine) note('TomTom no aceptó la clave o falló la conexión. Revisa la clave en Ajustes.'); });
     base.on('tileload',function(){ if($('mapNote').textContent.indexOf('TomTom no aceptó')===0) note(''); });
-    trafficLy=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/relative0-dark/{z}/{x}/{y}.png?key='+k,{maxZoom:20,opacity:.85,zIndex:5});
+    trafficLy=L.tileLayer('https://api.tomtom.com/traffic/map/4/tile/flow/'+(lightMap?'relative0':'relative0-dark')+'/{z}/{x}/{y}.png?key='+k,{maxZoom:20,opacity:.85,zIndex:5});
     if(lsGet('tt_traffic')!=='0') trafficLy.addTo(map);
     $('mTraffic').setAttribute('aria-pressed',lsGet('tt_traffic')!=='0');
     if(R) drawRoute();
@@ -1212,6 +1238,8 @@ body.night .ctrl button.play{color:#020a12}
     navOnFix();
   }
   window.navInit=navInit;
+  var MAP_LIGHT=null;
+  window.mapTheme=function(light){ if(map&&MAP_LIGHT!==null&&MAP_LIGHT!==light) navInit(); };
 
   function carIcon(){return L.divIcon({className:'',html:'<div class="carpin" style="transform:rotate('+(S.heading||0)+'deg)"><i></i></div>',iconSize:[34,34],iconAnchor:[17,17]});}
   function navOnFix(){
@@ -1395,13 +1423,31 @@ body.night .ctrl button.play{color:#020a12}
   /* Funciona sin internet una vez instalada */
   if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('sw.js').catch(function(){}); }catch(e){} }
 
+  /* ---------- temperatura del lugar (Open-Meteo, gratis y sin clave) ---------- */
+  var WX_ICON=function(c){ return c===0?'☀️':c<=2?'🌤️':c===3?'☁️':c<=48?'🌫️':c<=67?'🌧️':c<=77?'🌨️':c<=82?'🌦️':'⛈️'; };
+  function showTemp(w){ if(!w) return; var t=$('temp'); t.hidden=false; t.innerHTML=''; t.appendChild(document.createTextNode(Math.round(w.t)+'°'));
+    var sm=document.createElement('small'); sm.textContent=WX_ICON(w.c); t.appendChild(sm); t.title='Temperatura actual'; }
+  function fetchTemp(){
+    if(!navigator.onLine) return;
+    var lat=S.lat!=null?S.lat:4.142, lon=S.lon!=null?S.lon:-73.626;   // sin GPS: Villavicencio
+    fetch('https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(3)+'&longitude='+lon.toFixed(3)+'&current=temperature_2m,weather_code&timezone=auto')
+      .then(function(r){return r.json();}).then(function(d){
+        if(!d||!d.current) return; var w={t:d.current.temperature_2m,c:d.current.weather_code,at:Date.now()};
+        lsSet('wx',JSON.stringify(w)); showTemp(w);
+      }).catch(function(){});
+  }
+  try{ var wx0=JSON.parse(lsGet('wx')||'null'); if(wx0&&Date.now()-wx0.at<3*3600e3) showTemp(wx0); }catch(e){}
+  setTimeout(fetchTemp,3000); setInterval(fetchTemp,15*60e3);
+
   /* ---------- abrir la ruta en Waze o Google Maps ---------- */
   function extNav(kind){
     var d=window.navDest&&window.navDest(); if(!d) return;
-    var u = kind==='waze' ? 'https://waze.com/ul?ll='+d.lat+','+d.lon+'&navigate=yes'
+    var u = kind==='apple' ? 'https://maps.apple.com/?daddr='+d.lat+','+d.lon+'&dirflg=d'
+          : kind==='waze' ? 'https://waze.com/ul?ll='+d.lat+','+d.lon+'&navigate=yes'
           : 'https://www.google.com/maps/dir/?api=1&destination='+d.lat+','+d.lon+'&travelmode=driving';
     if(NATIVE) nativePost({cmd:'open',url:u}); else window.open(u,'_blank');
   }
+  $('tAmaps').onclick=function(){extNav('apple');};
   $('tWaze').onclick=function(){extNav('waze');};
   $('tGmaps').onclick=function(){extNav('gmaps');};
 
