@@ -28,7 +28,6 @@ final class OBDManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     private var timeoutWork: DispatchWorkItem?
     private var servicesLeft = 0
     private var polling = false
-    private var queue: [String] = []
     private var cycle = 0
     private var unsupported = Set<String>()
     private var misses: [String: Int] = [:]
@@ -230,6 +229,9 @@ final class OBDManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         unsupported.removeAll()
         misses.removeAll()
         values.removeAll()
+        dtcs = []
+        dtcCount = nil
+        mil = false
         run(["ATZ", "ATE0", "ATL0", "ATS0", "ATH0", "ATSP0"]) { [weak self] in
             self?.connectToCar()
         }
@@ -259,34 +261,69 @@ final class OBDManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
     }
 
+    /// Un pedido al carro. `header` dirige el pedido a un módulo concreto (motor 7E0, caja 7E2);
+    /// sin header va a todos los módulos (7DF), que es lo normal en OBD2.
+    private struct Request {
+        let cmd: String
+        let header: String?
+        init(_ cmd: String, header: String? = nil) { self.cmd = cmd; self.header = header }
+        var key: String { (header ?? "") + cmd }
+    }
+
+    private var requests: [Request] = []
+
     private func startPolling() {
         polling = true
         cycle = 0
-        queue = []
+        requests = []
         pollNext()
     }
 
     private func stopPolling() {
         polling = false
-        queue = []
+        requests = []
         finish(nil)
     }
 
     private func pollNext() {
         guard polling, device?.state == .connected else { return }
-        if queue.isEmpty {
+        if requests.isEmpty {
             cycle += 1
             if cycle > 1 { emit() }
-            var next = ["010D", "010C"]                                   // velocidad y RPM, siempre
-            if cycle % 8 == 1 { next += ["0105", "ATRV", "012F"] }        // temperatura, batería y tanque, cada tanto
-            queue = next.filter { !unsupported.contains($0) }
+            // Siempre: velocidad, RPM y flujo de aire (para el consumo real).
+            var next = [Request("010D"), Request("010C"), Request("0110")]
+            // Cada tanto: temperatura, batería, tanque, aceite y caja.
+            if cycle % 8 == 1 {
+                next += [Request("0105"), Request("ATRV"), Request("012F"), Request("015C"),
+                         Request("221154", header: "7E0"),     // aceite (GM)
+                         Request("221940", header: "7E2")]     // caja automática (GM)
+            }
+            // De vez en cuando: luz de check engine, códigos y odómetro.
+            if cycle % 40 == 1 { next += [Request("0101"), Request("01A6")] }
+            requests = next.filter { !unsupported.contains($0.key) }
         }
-        guard !queue.isEmpty else { return }
-        let cmd = queue.removeFirst()
-        send(cmd, timeout: 1.5) { [weak self] r in
+        guard !requests.isEmpty else { return }
+        let req = requests.removeFirst()
+        perform(req) { [weak self] r in
             guard let self else { return }
-            self.parse(cmd, r)
+            self.parse(req, r)
+            if req.cmd == "0101", let count = self.dtcCount, count > 0 {
+                self.requests.insert(Request("03"), at: 0)   // leer los códigos
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { self.pollNext() }
+        }
+    }
+
+    /// Envía el pedido; si va a un módulo concreto, cambia el header y luego lo devuelve a 7DF.
+    private func perform(_ req: Request, done: @escaping (String?) -> Void) {
+        guard let header = req.header else {
+            send(req.cmd, timeout: req.cmd == "03" ? 3 : 1.5, done: done)
+            return
+        }
+        send("ATSH" + header, timeout: 1) { [weak self] _ in
+            self?.send(req.cmd, timeout: 1.5) { r in
+                self?.send("ATSH7DF", timeout: 1) { _ in done(r) }
+            }
         }
     }
 
@@ -296,40 +333,115 @@ final class OBDManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             .replacingOccurrences(of: "\r", with: "\n")
     }
 
-    private static let keys = ["0D": "speed", "0C": "rpm", "05": "coolant", "2F": "fuel"]
+    /// Respuesta esperada: el modo + 0x40 y el resto del pedido (010D → 410D, 221154 → 621154).
+    private static func responsePrefix(_ cmd: String) -> String? {
+        guard cmd.count >= 2, let mode = Int(cmd.prefix(2), radix: 16) else { return nil }
+        return String(format: "%02X", mode + 0x40) + cmd.dropFirst(2)
+    }
 
-    private func parse(_ cmd: String, _ r: String?) {
+    private static func bytes(after prefix: String, in clean: String) -> [Int]? {
+        guard let range = clean.range(of: prefix) else { return nil }
+        let hex = Array(clean[range.upperBound...].prefix(while: { $0.isHexDigit }))
+        var out: [Int] = []
+        var i = 0
+        while i + 1 < hex.count {
+            if let b = Int(String(hex[i...i + 1]), radix: 16) { out.append(b) }
+            i += 2
+        }
+        return out
+    }
+
+    private var dtcCount: Int?
+    private var mil = false
+    private var dtcs: [String] = []
+
+    private func parse(_ req: Request, _ r: String?) {
         let clean = Self.clean(r)
+        let cmd = req.cmd
+
         if cmd == "ATRV" {
             let number = clean.filter { "0123456789.".contains($0) }
             if let v = Double(number), v > 5, v < 20 { values["volt"] = v }
             return
         }
-        let pid = String(cmd.suffix(2))
-        guard let range = clean.range(of: "41" + pid) else {
-            if let key = Self.keys[pid] { values.removeValue(forKey: key) }
+        if cmd == "03" { parseDTCs(clean); return }
+
+        guard let prefix = Self.responsePrefix(cmd),
+              let b = Self.bytes(after: prefix, in: clean), let a = b.first else {
+            switch cmd {
+            case "010D": values.removeValue(forKey: "speed")
+            case "010C": values.removeValue(forKey: "rpm")
+            default: break
+            }
             if r != nil {   // respondió pero sin el dato: tras varias veces, el carro no lo reporta
-                misses[cmd, default: 0] += 1
-                if misses[cmd, default: 0] >= 4 { unsupported.insert(cmd) }
+                misses[req.key, default: 0] += 1
+                if misses[req.key, default: 0] >= 3 { unsupported.insert(req.key) }
             }
             return
         }
-        misses[cmd] = 0
-        let hex = Array(clean[range.upperBound...].prefix(while: { $0.isHexDigit }))
-        var bytes: [Int] = []
-        var i = 0
-        while i + 1 < hex.count {
-            if let b = Int(String(hex[i...i + 1]), radix: 16) { bytes.append(b) }
-            i += 2
-        }
-        guard let a = bytes.first else { return }
-        switch pid {
-        case "0D": values["speed"] = Double(a)
-        case "0C": if bytes.count >= 2 { values["rpm"] = Double(a * 256 + bytes[1]) / 4 }
-        case "05": values["coolant"] = Double(a - 40)
-        case "2F": values["fuel"] = Double(a) * 100 / 255
+        misses[req.key] = 0
+        let two: Double? = b.count >= 2 ? Double(a * 256 + b[1]) : nil
+        switch cmd {
+        case "010D": values["speed"] = Double(a)
+        case "010C": if let two { values["rpm"] = two / 4 }
+        case "0110": if let two { values["maf"] = two / 100 }
+        case "0105": values["coolant"] = Double(a - 40)
+        case "012F": values["fuel"] = Double(a) * 100 / 255
+        case "015C", "221154": values["oil"] = Double(a - 40)
+        case "221940": values["atf"] = Double(a - 40)
+        case "01A6":
+            if b.count >= 4 {
+                let km = Double((a << 24) | (b[1] << 16) | (b[2] << 8) | b[3]) / 10
+                if km > 100 { values["odo"] = km }
+            }
+        case "0101":
+            mil = (a & 0x80) != 0
+            dtcCount = a & 0x7F
+            if dtcCount == 0 { dtcs = [] }
         default: break
         }
+    }
+
+    /// Códigos de falla (modo 03). En CAN cada módulo responde aparte, con el número de códigos
+    /// al inicio, y una respuesta larga llega en varias líneas numeradas (0:, 1:, 2:…).
+    private func parseDTCs(_ clean: String) {
+        let isCAN = (protocolName ?? "").contains("15765")
+        var segments: [String] = []
+        for raw in clean.split(separator: "\n").map(String.init) {
+            if raw.count <= 3 && raw.allSatisfy({ $0.isHexDigit }) { continue }   // largo del mensaje
+            var line = raw
+            var frame: Int?
+            if let colon = line.firstIndex(of: ":") {
+                frame = Int(line[..<colon], radix: 16)
+                line = String(line[line.index(after: colon)...])
+            }
+            let hex = line.filter { $0.isHexDigit }
+            if hex.hasPrefix("43") && (frame == nil || frame == 0) {
+                segments.append(String(hex.dropFirst(2)))
+            } else if frame != nil, !segments.isEmpty {
+                segments[segments.count - 1] += hex
+            }
+        }
+        var codes: [String] = []
+        for var seg in segments {
+            var limit = Int.max
+            if isCAN, seg.count >= 2, let n = Int(seg.prefix(2), radix: 16) {
+                limit = n
+                seg = String(seg.dropFirst(2))
+            }
+            var i = seg.startIndex
+            var taken = 0
+            while taken < limit, seg.distance(from: i, to: seg.endIndex) >= 4 {
+                let chunk = String(seg[i..<seg.index(i, offsetBy: 4)])
+                i = seg.index(i, offsetBy: 4)
+                taken += 1
+                guard chunk != "0000", let v = Int(chunk, radix: 16) else { continue }
+                let letter = ["P", "C", "B", "U"][(v >> 14) & 3]
+                let code = letter + String((v >> 12) & 3) + String(format: "%03X", v & 0xFFF)
+                if !codes.contains(code) { codes.append(code) }
+            }
+        }
+        dtcs = codes
     }
 
     // MARK: - Estado hacia la página
@@ -358,6 +470,8 @@ final class OBDManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         if state == "connected" {
             if let p = protocolName { d["proto"] = p }
             for (k, v) in values { d[k] = v }
+            d["mil"] = mil
+            d["dtc"] = dtcs
         }
         if state == "scanning" {
             let list = found.values.sorted {

@@ -78,7 +78,12 @@ body.night .ctitle{color:var(--muted)}
 .carbox img.fade{opacity:0}
 .carbox{position:relative}
 .trip{display:flex;gap:26px;font-variant-numeric:tabular-nums}
-.obd{display:flex;gap:18px;justify-content:center;font-variant-numeric:tabular-nums;margin-top:6px}
+.obd{display:grid;grid-template-columns:repeat(3,auto);gap:4px 22px;justify-content:center;font-variant-numeric:tabular-nums;margin-top:8px}
+.obd .ptonly{display:none}
+.obd .label{white-space:nowrap}
+@media (orientation:portrait){body.obdon .obd .label{letter-spacing:.06em;font-size:11px}body.obdon .obd strong{font-size:19px}}
+@media (orientation:portrait){body.obdon .trip{display:none}body.obdon .obd{grid-template-columns:repeat(4,auto);gap:4px 18px}body.obdon .obd .ptonly{display:block}}
+.fsrc{font-size:11px;letter-spacing:.08em;color:var(--good);border:1px solid currentColor;border-radius:6px;padding:0 5px;margin-left:6px;vertical-align:1px}
 .obd div{text-align:center}.obd strong{display:block;font-family:var(--display);font-size:20px;font-weight:600}
 .obd .warn strong{color:var(--warn)}.obd .crit strong{color:var(--crit)}
 #hello{position:fixed;inset:0;z-index:999;background:#0b0d10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;transition:opacity .6s ease}
@@ -265,7 +270,7 @@ body.night .ctrl button.play{color:#020a12}
       <img id="carImg" alt="Chevrolet Orlando" src="cars/orlando-principal.webp" draggable="false">
     </div>
     <div class="trip"><div><strong id="tripKm">0.0</strong><span class="label">Viaje km</span></div><div><strong id="gpsState">Demo</strong><span class="label">Fuente</span></div></div>
-    <div class="obd" id="obdRow" hidden><div id="oRpm"><strong>--</strong><span class="label">RPM</span></div><div id="oTemp"><strong>--</strong><span class="label">Motor °C</span></div><div id="oVolt"><strong>--</strong><span class="label">Batería V</span></div><div id="oFuel" hidden><strong>--</strong><span class="label">Tanque %</span></div></div>
+    <div class="obd" id="obdRow" hidden><div id="oTrip" class="ptonly"><strong>0.0</strong><span class="label">Viaje km</span></div><div id="oRpm"><strong>--</strong><span class="label">RPM</span></div><div id="oTemp"><strong>--</strong><span class="label">Motor °C</span></div><div id="oVolt"><strong>--</strong><span class="label">Batería V</span></div><div id="oOil" hidden><strong>--</strong><span class="label">Aceite °C</span></div><div id="oAtf" hidden><strong>--</strong><span class="label">Caja °C</span></div><div id="oOdo" hidden><strong>--</strong><span class="label">Odómetro km</span></div></div>
   </section>
 
   <section class="card nav" aria-label="Navegación">
@@ -310,12 +315,12 @@ body.night .ctrl button.play{color:#020a12}
   <section class="card fuel" aria-label="Combustible">
     <button class="pcol pshow" id="ppShow" aria-label="Mostrar pico y placa">→</button>
     <div class="gauge">
-      <div class="label">Gasolina · <span id="gal">0.0</span> de <span id="cap">16.9</span> gal</div>
+      <div class="label">Gasolina · <span id="gal">0.0</span> de <span id="cap">16.9</span> gal<span class="fsrc" id="fuelSrc" hidden>OBD</span></div>
       <div class="track"><i id="fuelBar"></i></div>
       <div class="ticks"><span>E</span><span>1/4</span><span>1/2</span><span>3/4</span><span>F</span></div>
     </div>
     <div class="stat"><strong id="range">0</strong><span>km de autonomía</span></div>
-    <div class="stat"><strong id="kmgal">0.0</strong><span>km por galón</span></div>
+    <div class="stat"><strong id="kmgal">0.0</strong><span id="kmgalLbl">km por galón</span></div>
     <div class="stat"><strong id="galkm">0.000</strong><span>galones por km</span></div>
     <button class="btn icon" id="refuelBtn" aria-label="Registrar tanqueo" title="Registrar tanqueo">⛽️</button>
   </section>
@@ -445,7 +450,7 @@ body.night .ctrl button.play{color:#020a12}
 
   function renderCar(){
     $('speed').textContent = Math.round(S.speed);
-    $('tripKm').textContent = S.trip.toFixed(1);
+    $('tripKm').textContent = S.trip.toFixed(1); var ot=document.querySelector('#oTrip strong'); if(ot) ot.textContent=S.trip.toFixed(1);
     var pct = Math.max(0,Math.min(1,S.fuel/TANK));
     $('fuelBar').style.width = (pct*100)+'%';
     $('fuelBar').style.background = pct<.15?'var(--crit)':pct<.3?'var(--warn)':'var(--good)';
@@ -453,6 +458,8 @@ body.night .ctrl button.play{color:#020a12}
     $('range').textContent = Math.round(S.fuel*S.kmgal);
     $('kmgal').textContent = S.kmgal.toFixed(1);
     $('galkm').textContent = (1/S.kmgal).toFixed(3);
+    var fObd=S.fuelObdAt&&Date.now()-S.fuelObdAt<60000; $('fuelSrc').hidden=!fObd;
+    $('kmgalLbl').textContent = S.kmgalReal ? 'km por galón · real' : 'km por galón';
     $('modeBtn').setAttribute('aria-pressed', S.demo);
     $('modeBtn').textContent = S.demo ? 'Modo demo' : 'GPS en vivo';
     $('gpsState').textContent = (S.obdAt&&Date.now()-S.obdAt<4000) ? 'OBD' : S.demo ? 'Demo' : 'GPS';
@@ -468,7 +475,7 @@ body.night .ctrl button.play{color:#020a12}
       if (Math.random()<.12) target = [0,25,45,60,80][Math.floor(Math.random()*5)];
       S.speed += (target-S.speed)*.25;
     }
-    var km = S.speed/3600; S.trip += km; S.fuel = Math.max(0,S.fuel - km/S.kmgal);
+    var km = S.speed/3600; S.trip += km; if(!(S.fuelObdAt&&Date.now()-S.fuelObdAt<60000)) S.fuel = Math.max(0,S.fuel - km/S.kmgal);
     if (++tick % 15 === 0) saveCar();
     renderCar(); renderProgress(); drawMap();
   },1000);
@@ -491,6 +498,7 @@ body.night .ctrl button.play{color:#020a12}
   $('fSave').onclick=function(){
     var km=parseFloat($('fKm').value), gal=parseFloat($('fGal').value);
     if(km>0 && gal>0){ S.kmgal=km/gal; S.fuel=TANK; S.trip=0; saveCar(); }
+    if(window.__consReset) window.__consReset();
     dlg.close(); renderCar();
   };
 
@@ -1043,8 +1051,25 @@ body.night .ctrl button.play{color:#020a12}
   function saveMant(){lsSet('mant',JSON.stringify(MANT));}
   var SESS={};   // avisos cerrados "por ahora" en esta sesión
 
+  var CEL={mil:false,dtc:[]};
+  var DTC_ES={P0171:'Mezcla muy pobre (banco 1): entra más aire del que debe o falta combustible. Revisar fugas de vacío, sensor MAF e inyectores.',
+    P0172:'Mezcla muy rica (banco 1): sobra combustible. Revisar sensor MAF, inyectores o presión de combustible.',
+    P0101:'Sensor de flujo de aire (MAF) fuera de rango. Suele ser suciedad en el sensor o una fuga de aire.',
+    P0128:'El motor tarda en calentar: posible termostato abierto o pegado.',
+    P0130:'Sensor de oxígeno 1 (antes del catalizador) con falla en el circuito.',P0131:'Sensor de oxígeno 1 con voltaje bajo.',P0132:'Sensor de oxígeno 1 con voltaje alto.',
+    P0133:'Sensor de oxígeno 1 responde lento: suele estar desgastado.',P0134:'Sensor de oxígeno 1 sin actividad.',P0135:'Falla en el calentador del sensor de oxígeno 1.',
+    P0137:'Sensor de oxígeno 2 (después del catalizador) con voltaje bajo.',P0141:'Falla en el calentador del sensor de oxígeno 2.',
+    P0300:'Fallas de encendido en varios cilindros: bujías, bobinas o combustible.',P0301:'Falla de encendido en el cilindro 1.',P0302:'Falla de encendido en el cilindro 2.',
+    P0303:'Falla de encendido en el cilindro 3.',P0304:'Falla de encendido en el cilindro 4.',
+    P0420:'Catalizador con baja eficiencia (banco 1). Puede ser el catalizador o un sensor de oxígeno.',
+    P0442:'Fuga pequeña en el sistema de vapores de gasolina. Revisar primero la tapa del tanque.',P0455:'Fuga grande en el sistema de vapores de gasolina. Revisar la tapa del tanque.',
+    P0496:'Purga de vapores con flujo indebido: suele ser la válvula de purga (canister).',P0506:'Ralentí más bajo de lo esperado.',P0507:'Ralentí más alto de lo esperado: posible fuga de aire o cuerpo de aceleración sucio.',
+    P0011:'Tiempo del árbol de levas de admisión adelantado: revisar nivel y estado del aceite y la válvula solenoide.',P0014:'Tiempo del árbol de levas de escape adelantado: revisar aceite y solenoide.',
+    P0016:'Desfase entre cigüeñal y árbol de levas: puede ser la cadena/correa de repartición o un sensor.',P0597:'Falla en el circuito del calentador del termostato.',
+    P2096:'Corrección de combustible posterior demasiado pobre.',P2097:'Corrección de combustible posterior demasiado rica.'};
   function dueList(){
     var out=[], t=today0();
+    if((CEL.mil||CEL.dtc.length)&&!SESS.cel) out.push({kind:'cel',id:'cel',crit:true});
     Object.keys(DOCS).forEach(function(k){
       var v=parseYmd(DOCS[k].vence); if(!v||SESS[k]) return;
       var left=daysBetween(t,v); if(left>2) return;
@@ -1071,7 +1096,12 @@ body.night .ctrl button.play{color:#020a12}
     if(!L.length){ad.close();renderAlertChip();return;}
     L.forEach(function(a){
       var card=el('div','aitem'+(a.crit?' crit':'')), row=el('div','row'), more=el('div','more');
-      if(a.kind==='doc'){
+      if(a.kind==='cel'){
+        card.appendChild(el('b',null,'Check engine'+(CEL.mil?' encendido':'')+' · '+CEL.dtc.length+(CEL.dtc.length===1?' código':' códigos')));
+        if(!CEL.dtc.length) card.appendChild(el('p',null,'La computadora del motor reporta una falla pero no entregó el código. Revísalo con Car Scanner o con tu mecánico.'));
+        CEL.dtc.forEach(function(c){ var p=el('p'); p.appendChild(el('strong',null,c+': ')); p.appendChild(document.createTextNode(DTC_ES[c]||'Código sin descripción en el tablero. Búscalo en Car Scanner o pregúntale a tu mecánico.')); card.appendChild(p); });
+        card.appendChild(el('p','psub','Si la luz parpadea o el carro tiembla, no sigas manejando: lleva el carro al mecánico.'));
+      } else if(a.kind==='doc'){
         var d=DOCS[a.id], v=parseYmd(d.vence);
         card.appendChild(el('b',null,DOCNAME[a.id]));
         card.appendChild(el('p',null, a.left<0 ? 'Venció el '+fShort(v)+' (hace '+(-a.left)+(a.left===-1?' día':' días')+'). Manejar sin este documento vigente te expone a multa e inmovilización del carro.'
@@ -1386,7 +1416,7 @@ body.night .ctrl button.play{color:#020a12}
   /* ======================================================
      Respaldo y restauración de datos
      ====================================================== */
-  var BK_KEYS=['helloName','radio_v','radio_favs','musicSrc','clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
+  var BK_KEYS=['helloName','cons','radio_v','radio_favs','musicSrc','clock24','tank','fuel','kmgal','plate','mainCity','night','docs','mant','favs','ppHidden','tt_key','tt_traffic','sp_cid'];
   function bkMake(){var o={app:'tablero-orlando',v:1,fecha:new Date().toISOString(),datos:{}};BK_KEYS.forEach(function(k){var v=lsGet(k);if(v!==null)o.datos[k]=v;});return JSON.stringify(o);}
   function bkMsg(t){$('bkMsg').textContent=t;}
   function bkApply(txt){
@@ -1455,17 +1485,32 @@ body.night .ctrl button.play{color:#020a12}
   if(NATIVE){
     $('obdSet').hidden=false;
     var OBD={state:'off'};
+    var CONS=(function(){ try{ var c=JSON.parse(lsGet('cons')||'null'); if(c) return {km:c.km,gal:c.gal,at:0,n:0}; }catch(e){} return {km:0,gal:0,at:0,n:0}; })();
+    window.__consReset=function(){ CONS.km=0; CONS.gal=0; S.kmgalReal=false; lsDel('cons'); };
     function oSet(id,v,cls){ var e=$(id); e.querySelector('strong').textContent=v; e.className=cls||''; }
     window.__obd=function(d){
       OBD=d||{};
       var on=OBD.state==='connected';
-      $('obdRow').hidden=!on;
+      $('obdRow').hidden=!on; document.body.classList.toggle('obdon',on);
       if(on){
         if(OBD.speed!=null){ S.speed=OBD.speed; S.obdAt=Date.now(); }
         oSet('oRpm', OBD.rpm!=null?Math.round(OBD.rpm):'--');
         oSet('oTemp', OBD.coolant!=null?Math.round(OBD.coolant):'--', OBD.coolant>=108?'crit':OBD.coolant>=102?'warn':'');
         oSet('oVolt', OBD.volt!=null?OBD.volt.toFixed(1):'--', OBD.volt!=null&&(OBD.volt<11.8||OBD.volt>15)?'warn':'');
-        $('oFuel').hidden=OBD.fuel==null; if(OBD.fuel!=null) oSet('oFuel', Math.round(OBD.fuel));
+        $('oOil').hidden=OBD.oil==null; if(OBD.oil!=null) oSet('oOil', Math.round(OBD.oil), OBD.oil>=125?'crit':OBD.oil>=115?'warn':'');
+        $('oAtf').hidden=OBD.atf==null; if(OBD.atf!=null) oSet('oAtf', Math.round(OBD.atf), OBD.atf>=115?'crit':OBD.atf>=105?'warn':'');
+        $('oOdo').hidden=OBD.odo==null; if(OBD.odo!=null) oSet('oOdo', Math.round(OBD.odo).toLocaleString('es-CO'));
+        // gasolina real del sensor del tanque
+        if(OBD.fuel!=null){ S.fuel=OBD.fuel/100*TANK; S.fuelObdAt=Date.now(); }
+        // consumo real: flujo de aire del motor (MAF) y velocidad
+        if(OBD.maf!=null){ var now=Date.now(), dt=CONS.at?Math.min(5,(now-CONS.at)/1000):0; CONS.at=now;
+          CONS.gal += OBD.maf/14.7/745*dt/3.785; CONS.km += (OBD.speed||0)/3600*dt;
+          if(CONS.km>=5&&CONS.gal>0){ S.kmgal=CONS.km/CONS.gal; S.kmgalReal=true; }
+          if(++CONS.n%30===0){ lsSet('cons',JSON.stringify({km:CONS.km,gal:CONS.gal})); saveCar(); } }
+        // kilometraje del carro para el mantenimiento
+        if(OBD.odo!=null&&OBD.odo>1000){ if(MANT.odo==null||Math.abs(MANT.odo-OBD.odo)>=1){ MANT.odo=OBD.odo; MANT.items.forEach(function(it){if(it.last==null)it.last=OBD.odo;}); saveMant(); } }
+        // check engine
+        CEL={mil:!!OBD.mil,dtc:OBD.dtc||[]}; renderAlertChip();
         renderCar();
       }
       var M={off:'Bluetooth apagado. Actívalo en Configuración del iPad.',unauthorized:'La app no tiene permiso de Bluetooth. Actívalo en Configuración → Tablero Orlando.',

@@ -1,5 +1,5 @@
 // Guarda el tablero en el iPad para que abra sin internet. Spotify siempre va por red.
-var CACHE = 'orlando-v25';
+var CACHE = 'orlando-v26';
 var SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png',
   './cars/orlando-principal.webp'];
 
